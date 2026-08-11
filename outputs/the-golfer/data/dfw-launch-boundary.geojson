@@ -1,0 +1,26 @@
+{
+  "type": "Feature",
+  "properties": {
+    "name": "Golfolio — DFW launch boundary",
+    "status": "approved-for-initial-launch",
+    "description": "Initial North Texas launch geofence. Includes the DFW region from just west of Weatherford to just east of Royse City, from just south of Midlothian to just below the Oklahoma border.",
+    "boundary_rules": {
+      "west": "Weatherford outer edge",
+      "east": "Royse City outer edge",
+      "south": "Midlothian outer edge",
+      "north": "Texas side of the Oklahoma border"
+    }
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [-97.85, 32.43],
+        [-96.28, 32.43],
+        [-96.28, 33.90],
+        [-97.85, 33.90],
+        [-97.85, 32.43]
+      ]
+    ]
+  }
+}
