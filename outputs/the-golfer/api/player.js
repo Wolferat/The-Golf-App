@@ -1,6 +1,3 @@
-Exit code: 0
-Wall time: 0.7 seconds
-Output:
 const json = (res, status, body) => res.status(status).json(body);
 
 async function authenticatedUser(req) {
