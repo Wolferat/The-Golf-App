@@ -1,6 +1,3 @@
-Exit code: 0
-Wall time: 0.6 seconds
-Output:
 -- Golfolio player hub: run this once in the Supabase SQL Editor.
 -- It adds player stats, personal round history, and player connections.
 
