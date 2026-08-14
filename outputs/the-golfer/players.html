@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Find Players · Golfolio</title>
+  <link rel="stylesheet" href="/assets/shared.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="Golfolio"></a>
+    <div class="top-actions">
+      <small>Find your golf crew</small>
+      <button class="ghost-top" id="accountButton" type="button">Sign in</button>
+      <button class="button alt hidden" id="signupButton" type="button">Sign up free</button>
+      <div id="accountMenu" class="account-menu hidden"></div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <p class="page-kicker">Player directory</p>
+    <h1 class="page-title">Find players</h1>
+    <p class="page-copy">Search by username only. Real names, emails, phones, cities, and distances stay private.</p>
+
+    <section class="panel-card" style="margin-top:24px">
+      <label for="playerSearch" style="font-weight:700;font-size:13px">Search player usernames</label>
+      <input id="playerSearch" maxlength="24" placeholder="Search by username" style="display:block;width:100%;margin-top:8px;min-height:48px;padding:11px 13px;border:1px solid #d7e1d8;border-radius:12px">
+      <div id="playerResults" class="player-grid" style="margin-top:18px"><p class="muted">Loading players...</p></div>
+    </section>
+  </main>
+
+  <nav class="mobile-nav" aria-label="App navigation">
+    <a href="/"><span>H</span>Home</a>
+    <a href="/hub"><span>G</span>My game</a>
+    <a class="active" href="/players"><span>P</span>Players</a>
+  </nav>
+
+  <script src="/assets/auth.js"></script>
+  <script>
+    const { $, escapeHtml, playerAvatar, api, requireAuth, bindAppHeader, ensureLoginModal } = Golfolio;
+    ensureLoginModal();
+
+    function card(p){
+      // Privacy: never show city or distance — state code only.
+      const badges = [
+        p.handicap != null ? `${escapeHtml(p.handicap)} HCP` : null,
+        p.rounds != null ? `${escapeHtml(p.rounds)} Rounds` : null,
+        p.state ? escapeHtml(String(p.state).toUpperCase()) : null
+      ].filter(Boolean);
+      return `<article class="player-card">
+        <div class="player-card-main">
+          <div class="profile-avatar">${playerAvatar(p)}</div>
+          <div>
+            <strong>@${escapeHtml(p.username)}</strong>
+            <small>${escapeHtml(p.home_course || 'Golfolio player')}</small>
+            <div class="badge-row">${badges.map(b=>`<span class="badge">${b}</span>`).join('')}</div>
+          </div>
+        </div>
+        <button class="button" data-follow="${p.id}" data-following="${!!p.following}">${p.following?'Following':'Follow'}</button>
+      </article>`;
+    }
+
+    async function load(){
+      const results = $('#playerResults');
+      const q = $('#playerSearch').value.trim();
+      results.innerHTML = '<p class="muted">Searching...</p>';
+      try{
+        const d = await api('/api/player?view=players&q=' + encodeURIComponent(q));
+        // Defensive strip: never render city/distance even if API regresses.
+        const players = (d.players || []).map(p => {
+          const { city, distance, miles, ...safe } = p;
+          return safe;
+        });
+        results.innerHTML = players.length
+          ? players.map(card).join('')
+          : `<div class="empty-block"><h3>No player found.</h3><p>Try another username as more golfers join Golfolio.</p></div>`;
+        results.querySelectorAll('[data-follow]').forEach(button => button.onclick = async () => {
+          button.disabled = true;
+          try{
+            await api('/api/player', { method:'POST', body: JSON.stringify({ action: button.dataset.following === 'true' ? 'unfollow' : 'follow', following_id: button.dataset.follow }) });
+            load();
+          }catch(e){ button.disabled = false; alert(e.message); }
+        });
+      }catch(e){
+        results.innerHTML = `<p class="status err">${escapeHtml(e.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      if(!requireAuth()) return;
+      await bindAppHeader();
+      const search = $('#playerSearch');
+      search.oninput = () => { clearTimeout(search._t); search._t = setTimeout(load, 250); };
+      load();
+    })();
+  </script>
+</body>
+</html>
