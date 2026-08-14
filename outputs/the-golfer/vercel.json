@@ -1,5 +1,11 @@
 {
   "crons": [
     { "path": "/api/discovery", "schedule": "0 12 * * *" }
+  ],
+  "rewrites": [
+    { "source": "/hub", "destination": "/hub.html" },
+    { "source": "/profile", "destination": "/profile.html" },
+    { "source": "/players", "destination": "/players.html" },
+    { "source": "/admin", "destination": "/admin.html" }
   ]
 }

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Player Hub · Golfolio</title>
+  <link rel="stylesheet" href="/assets/shared.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="Golfolio"></a>
+    <div class="top-actions">
+      <small>Your personal golf HQ</small>
+      <button class="ghost-top" id="accountButton" type="button">Sign in</button>
+      <button class="button alt hidden" id="signupButton" type="button">Sign up free</button>
+      <div id="accountMenu" class="account-menu hidden"></div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <p class="page-kicker">Golfolio player hub</p>
+    <div id="hubRoot"><p class="page-copy">Loading your golf...</p></div>
+  </main>
+
+  <nav class="mobile-nav" aria-label="App navigation">
+    <a href="/"><span>H</span>Home</a>
+    <a class="active" href="/hub"><span>G</span>My game</a>
+    <a href="/players"><span>P</span>Players</a>
+  </nav>
+
+  <script src="/assets/auth.js"></script>
+  <script>
+    const { $, $$, escapeHtml, playerAvatar, displayName, api, requireAuth, bindAppHeader, ensureLoginModal } = Golfolio;
+    ensureLoginModal();
+    const panelMap = { game: 'panelGame', history: 'panelHistory', crew: 'panelCrew' };
+    function statValue(v){ return v == null || v === '' ? '—' : v }
+
+    function playerCard(p){
+      const badges = [
+        p.handicap != null ? `${escapeHtml(p.handicap)} HCP` : null,
+        p.rounds != null ? `${escapeHtml(p.rounds)} Rounds` : null,
+        p.state ? escapeHtml(String(p.state).toUpperCase()) : null
+      ].filter(Boolean);
+      return `<article class="player-card">
+        <div class="player-card-main">
+          <div class="profile-avatar">${playerAvatar(p)}</div>
+          <div>
+            <strong>@${escapeHtml(p.username)}</strong>
+            <small>${escapeHtml(p.home_course || 'Golfolio player')}</small>
+            <div class="badge-row">${badges.map(b=>`<span class="badge">${b}</span>`).join('')}</div>
+          </div>
+        </div>
+        <button class="button" data-follow="${p.id}" data-following="${p.following}">${p.following?'Following':'Follow'}</button>
+      </article>`;
+    }
+
+    function bindFollowButtons(root){
+      root.querySelectorAll('[data-follow]').forEach(button => button.onclick = async () => {
+        button.disabled = true;
+        try{
+          await api('/api/player', { method:'POST', body: JSON.stringify({ action: button.dataset.following === 'true' ? 'unfollow' : 'follow', following_id: button.dataset.follow }) });
+          await render('crew');
+        }catch(e){ button.disabled = false; alert(e.message); }
+      });
+    }
+
+    async function loadCrew(target){
+      target.innerHTML = '<p class="muted">Loading your crew...</p>';
+      try{
+        const d = await api('/api/player?view=players');
+        const following = d.players.filter(p => p.following);
+        target.innerHTML = following.length
+          ? `<div class="player-grid">${following.map(p => playerCard(p)).join('')}</div>`
+          : `<div class="empty-block"><h3>No crew yet.</h3><p>Find players and follow usernames to build your golf circle.</p><p style="margin-top:14px"><a class="button" href="/players">Find players</a></p></div>`;
+        bindFollowButtons(target);
+      }catch(e){ target.innerHTML = `<p class="status err">${escapeHtml(e.message)}</p>`; }
+    }
+
+    function activateTab(name){
+      $$('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+      $$('.panel').forEach(p => p.classList.toggle('active', p.id === panelMap[name]));
+      if(name === 'crew') loadCrew($('#crewBody'));
+    }
+
+    function bindRoundForm(){
+      const form = $('#roundForm');
+      if(!form) return;
+      $('#roundDate').value = new Date().toISOString().slice(0,10);
+      form.onsubmit = async e => {
+        e.preventDefault();
+        const s = $('#roundStatus');
+        s.textContent = 'Saving round...';
+        s.classList.remove('err');
+        try{
+          await api('/api/player', { method:'POST', body: JSON.stringify({ action:'round', round:{
+            course_name: $('#roundCourse').value, played_on: $('#roundDate').value, score: $('#roundScore').value,
+            holes: $('#roundHoles').value, par: $('#roundPar').value, putts: $('#roundPutts').value,
+            notes: $('#roundNotes').value, visibility: $('#roundVisibility').value
+          }})});
+          s.textContent = 'Round saved.';
+          setTimeout(() => render('history'), 400);
+        }catch(err){ s.textContent = err.message; s.classList.add('err'); }
+      };
+    }
+
+    async function render(activeTab = 'game'){
+      const root = $('#hubRoot');
+      root.innerHTML = '<p class="page-copy">Loading your golf...</p>';
+      try{
+        const data = await api('/api/player?view=me');
+        const p = data.profile || {};
+        root.innerHTML = `
+          <div class="hub-banner">
+            <div class="hub-banner-main">
+              <div class="profile-avatar">${playerAvatar(p)}</div>
+              <div>
+                <h1>${escapeHtml(displayName(p))}</h1>
+                <div class="handle">@${escapeHtml(p.username || 'player')}</div>
+              </div>
+            </div>
+            <a class="button" href="/profile">Edit Profile</a>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi"><b>${statValue(data.stats?.rounds)}</b><span>Rounds played</span></div>
+            <div class="kpi"><b>${statValue(data.stats?.average)}</b><span>18-hole avg</span></div>
+            <div class="kpi"><b>${statValue(data.stats?.best)}</b><span>Best score</span></div>
+          </div>
+          <section class="cta-card">
+            <div><h2>Log a round</h2><p>Add what you actually shot. Stats update from real rounds only.</p></div>
+            <button class="button" type="button" id="jumpLog">Log a Round</button>
+          </section>
+          <div class="tabs" role="tablist">
+            <button class="tab ${activeTab==='game'?'active':''}" data-tab="game" type="button">My Game</button>
+            <button class="tab ${activeTab==='history'?'active':''}" data-tab="history" type="button">Round History</button>
+            <button class="tab ${activeTab==='crew'?'active':''}" data-tab="crew" type="button">Players / Crew</button>
+          </div>
+          <section class="panel ${activeTab==='game'?'active':''}" id="panelGame">
+            <div class="panel-card">
+              <h3>Log a round</h3>
+              <p class="muted">Keep it private, share with connections, or publish to your profile.</p>
+              <form class="form" id="roundForm">
+                <label for="roundCourse">Course</label>
+                <input id="roundCourse" maxlength="160" required placeholder="Where did you play?">
+                <div class="form-split">
+                  <div><label for="roundDate">Date played</label><input id="roundDate" type="date" required></div>
+                  <div><label for="roundScore">Score</label><input id="roundScore" type="number" min="20" max="200" required></div>
+                </div>
+                <div class="form-split">
+                  <div><label for="roundHoles">Holes</label><select id="roundHoles"><option value="18">18 holes</option><option value="9">9 holes</option></select></div>
+                  <div><label for="roundPar">Par (optional)</label><input id="roundPar" type="number" min="27" max="90"></div>
+                </div>
+                <div class="form-split">
+                  <div><label for="roundPutts">Putts (optional)</label><input id="roundPutts" type="number" min="0" max="100"></div>
+                  <div><label for="roundVisibility">Who can see it?</label><select id="roundVisibility"><option value="private">Only me</option><option value="connections">My connections</option><option value="public">Public profile</option></select></div>
+                </div>
+                <label for="roundNotes">Quick notes (optional)</label>
+                <input id="roundNotes" maxlength="500" placeholder="Best drive, birdies, what to work on...">
+                <button class="button" type="submit">Save round</button>
+                <p class="status" id="roundStatus"></p>
+              </form>
+            </div>
+          </section>
+          <section class="panel ${activeTab==='history'?'active':''}" id="panelHistory">
+            <div class="panel-card">
+              <h3>Round history</h3>
+              ${data.rounds?.length ? `<div class="history-list">${data.rounds.map(r => `
+                <div class="round-row">
+                  <div><strong>${escapeHtml(r.course_name)}</strong><small>${new Date(r.played_on+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} · ${r.holes} holes${r.par?' · Par '+r.par:''}</small></div>
+                  <div class="round-score">${r.score}<small style="display:block;font-family:'DM Sans',sans-serif;font-size:11px;color:var(--muted)">${r.visibility==='private'?'Private':r.visibility}</small></div>
+                </div>`).join('')}</div>` : `<div class="empty-block"><h3>Your scorecard starts here.</h3><p>Log your first round to see averages and personal bests.</p></div>`}
+            </div>
+          </section>
+          <section class="panel ${activeTab==='crew'?'active':''}" id="panelCrew">
+            <div class="panel-card"><h3>Players / Crew</h3><div id="crewBody"></div></div>
+          </section>`;
+        $$('.tab').forEach(btn => btn.onclick = () => activateTab(btn.dataset.tab));
+        $('#jumpLog').onclick = () => { activateTab('game'); $('#roundCourse').focus(); };
+        bindRoundForm();
+        if(activeTab === 'crew') loadCrew($('#crewBody'));
+      }catch(e){
+        root.innerHTML = `<div class="empty-block"><h3>Could not open your hub.</h3><p>${escapeHtml(e.message)}</p><p style="margin-top:12px">If this mentions missing tables, run <code>supabase/player-hub-migration.sql</code> in Supabase.</p></div>`;
+      }
+    }
+
+    (async () => {
+      if(!requireAuth()) return;
+      await bindAppHeader();
+      const tab = new URLSearchParams(location.search).get('tab') || 'game';
+      await render(['game','history','crew'].includes(tab) ? tab : 'game');
+    })();
+  </script>
+</body>
+</html>

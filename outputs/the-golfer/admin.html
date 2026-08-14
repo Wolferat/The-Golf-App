@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mission Control · Golfolio</title>
+  <link rel="stylesheet" href="/assets/shared.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="Golfolio"></a>
+    <div class="top-actions">
+      <small>Admin Mission Control</small>
+      <button class="ghost-top" id="accountButton" type="button">Sign in</button>
+      <button class="button alt hidden" id="signupButton" type="button">Sign up free</button>
+      <div id="accountMenu" class="account-menu hidden"></div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <p class="page-kicker">Internal operations</p>
+    <h1 class="page-title">Mission Control</h1>
+    <p class="page-copy">Moderate listings, support players, and tune the DFW launch geofence.</p>
+
+    <div class="admin-layout">
+      <aside class="admin-side">
+        <h2>Console</h2>
+        <nav class="admin-nav" id="adminNav">
+          <button type="button" class="active" data-view="listings">Listing queue</button>
+          <button type="button" data-view="users">Users & support</button>
+          <button type="button" data-view="geofence">Geofence controls</button>
+          <button type="button" data-view="company">Company settings</button>
+        </nav>
+      </aside>
+      <section class="admin-main" id="adminMain"><p class="muted">Loading...</p></section>
+    </div>
+  </main>
+
+  <script src="/assets/auth.js"></script>
+  <script>
+    const { $, $$, escapeHtml, api, requireAuth, bindAppHeader, ensureLoginModal } = Golfolio;
+    ensureLoginModal();
+    let view = new URLSearchParams(location.search).get('view') || 'listings';
+
+    function setView(next){
+      view = next;
+      history.replaceState(null, '', '/admin?view=' + encodeURIComponent(view));
+      $$('#adminNav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+      render();
+    }
+
+    async function renderListings(){
+      const d = await api('/api/admin?view=listings');
+      const list = d.listings || [];
+      $('#adminMain').innerHTML = `
+        <div class="admin-toolbar"><h3 style="margin:0;font-family:'Playfair Display',serif;font-size:24px">Listing moderation queue</h3><span class="muted">${list.length} pending</span></div>
+        ${list.length ? list.map(x => `
+          <article class="review" data-id="${x.id}">
+            <h3>${escapeHtml(x.title)}</h3>
+            <p>${escapeHtml(x.kind)} · ${escapeHtml(x.city || 'No city')} · ${escapeHtml(x.source_name || 'Source pending')}</p>
+            <p style="margin-top:6px"><a href="${escapeHtml(x.source_url)}" target="_blank" rel="noreferrer">Open source</a></p>
+            <div class="form" style="margin-top:12px">
+              <label>Edit title before approve (optional)</label>
+              <input data-field="title" value="${escapeHtml(x.title)}">
+              <label>City / area note</label>
+              <input data-field="city" value="${escapeHtml(x.city || '')}">
+              <label>Price note</label>
+              <input data-field="price_note" value="${escapeHtml(x.price_note || '')}">
+            </div>
+            <div class="review-actions">
+              <button class="button" data-action="approve">Approve</button>
+              <button class="button ghost-dark" data-action="save">Save edits</button>
+              <button class="button danger" data-action="reject">Reject</button>
+            </div>
+          </article>`).join('') : `<div class="empty-block"><h3>Queue clear.</h3><p>Nothing is waiting for review.</p></div>`}`;
+      $$('.review').forEach(card => {
+        card.querySelectorAll('button[data-action]').forEach(btn => btn.onclick = async () => {
+          btn.disabled = true;
+          try{
+            const payload = {
+              action: btn.dataset.action === 'save' ? 'update_listing' : btn.dataset.action,
+              id: card.dataset.id,
+              listing: {
+                title: card.querySelector('[data-field="title"]').value.trim(),
+                city: card.querySelector('[data-field="city"]').value.trim() || null,
+                price_note: card.querySelector('[data-field="price_note"]').value.trim() || null
+              }
+            };
+            await api('/api/admin', { method:'POST', body: JSON.stringify(payload) });
+            await renderListings();
+          }catch(e){ alert(e.message); btn.disabled = false; }
+        });
+      });
+    }
+
+    async function renderUsers(){
+      $('#adminMain').innerHTML = `
+        <div class="admin-toolbar">
+          <h3 style="margin:0;font-family:'Playfair Display',serif;font-size:24px">User management & support</h3>
+          <input id="userQuery" placeholder="Lookup by username or email">
+        </div>
+        <div id="userResults"><p class="muted">Search to load players.</p></div>`;
+      const run = async () => {
+        const q = $('#userQuery').value.trim();
+        const box = $('#userResults');
+        box.innerHTML = '<p class="muted">Searching...</p>';
+        try{
+          const d = await api('/api/admin?view=users&q=' + encodeURIComponent(q));
+          const users = d.users || [];
+          box.innerHTML = users.length ? users.map(u => `
+            <article class="user-row" data-id="${u.id}">
+              <h3>@${escapeHtml(u.username)} <span class="badge">${escapeHtml(u.role || 'player')}</span></h3>
+              <p>${escapeHtml(u.email || 'Email hidden / unavailable')} · rounds ${u.rounds ?? 0} · state ${escapeHtml(u.state || '—')}</p>
+              <div class="user-actions">
+                <select data-role>
+                  <option value="player" ${u.role==='player'?'selected':''}>Player</option>
+                  <option value="organizer" ${u.role==='organizer'?'selected':''}>Verified organizer</option>
+                  <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+                </select>
+                <button class="button ghost-dark" data-action="set_role">Save role</button>
+                <button class="button danger" data-action="reset_stats">Reset stats / game data</button>
+              </div>
+            </article>`).join('') : `<div class="empty-block"><h3>No users matched.</h3><p>Try another username or email.</p></div>`;
+          $$('.user-row').forEach(row => {
+            row.querySelectorAll('button[data-action]').forEach(btn => btn.onclick = async () => {
+              if(btn.dataset.action === 'reset_stats' && !confirm('Delete all rounds for this player? This cannot be undone.')) return;
+              btn.disabled = true;
+              try{
+                await api('/api/admin', { method:'POST', body: JSON.stringify({
+                  action: btn.dataset.action,
+                  user_id: row.dataset.id,
+                  role: row.querySelector('[data-role]').value
+                })});
+                alert(btn.dataset.action === 'reset_stats' ? 'Game data reset.' : 'Role updated.');
+                run();
+              }catch(e){ alert(e.message); btn.disabled = false; }
+            });
+          });
+        }catch(e){ box.innerHTML = `<p class="status err">${escapeHtml(e.message)}</p>`; }
+      };
+      $('#userQuery').onkeydown = e => { if(e.key === 'Enter') run(); };
+      $('#userQuery').oninput = () => { clearTimeout($('#userQuery')._t); $('#userQuery')._t = setTimeout(run, 300); };
+      run();
+    }
+
+    async function renderGeofence(){
+      const d = await api('/api/admin?view=settings');
+      const s = d.settings || {};
+      $('#adminMain').innerHTML = `
+        <div class="panel-card">
+          <h3>Geofence controls</h3>
+          <p class="muted">Launch perimeter for discovery and nearby sorting. Player directory never shows distance.</p>
+          <form class="form" id="geoForm">
+            <label for="boundaryName">Boundary name</label>
+            <input id="boundaryName" value="${escapeHtml(s.launch_boundary_name || 'DFW launch boundary')}" required>
+            <div class="geo-grid">
+              <div><label for="west">West longitude</label><input id="west" type="number" step="0.0001" value="${s.geofence_west ?? -97.95}" required></div>
+              <div><label for="east">East longitude</label><input id="east" type="number" step="0.0001" value="${s.geofence_east ?? -96.25}" required></div>
+              <div><label for="south">South latitude</label><input id="south" type="number" step="0.0001" value="${s.geofence_south ?? 32.15}" required></div>
+              <div><label for="north">North latitude</label><input id="north" type="number" step="0.0001" value="${s.geofence_north ?? 33.45}" required></div>
+            </div>
+            <label for="proximity">Proximity radius (miles)</label>
+            <input id="proximity" type="number" min="1" max="100" value="${s.proximity_miles ?? 15}" required>
+            <button class="button" type="submit">Save geofence</button>
+            <p class="status" id="geoStatus"></p>
+          </form>
+        </div>`;
+      $('#geoForm').onsubmit = async e => {
+        e.preventDefault();
+        const st = $('#geoStatus');
+        st.textContent = 'Saving...';
+        try{
+          await api('/api/admin', { method:'POST', body: JSON.stringify({ action:'save_geofence', settings:{
+            launch_boundary_name: $('#boundaryName').value.trim(),
+            geofence_west: Number($('#west').value),
+            geofence_east: Number($('#east').value),
+            geofence_south: Number($('#south').value),
+            geofence_north: Number($('#north').value),
+            proximity_miles: Number($('#proximity').value)
+          })});
+          st.textContent = 'Geofence saved.';
+        }catch(err){ st.textContent = err.message; st.classList.add('err'); }
+      };
+    }
+
+    async function renderCompany(){
+      const d = await api('/api/admin?view=settings');
+      const s = d.settings || {};
+      $('#adminMain').innerHTML = `
+        <div class="panel-card">
+          <h3>Company settings</h3>
+          <form class="form" id="companyForm">
+            <label for="companyName">Company name</label>
+            <input id="companyName" value="${escapeHtml(s.company_name || 'Golfolio')}" required>
+            <label for="supportEmail">Support email</label>
+            <input id="supportEmail" type="email" value="${escapeHtml(s.support_email || '')}">
+            <label for="reviewMode">Listing approval</label>
+            <select id="reviewMode">
+              <option value="admin" ${s.review_mode==='admin'?'selected':''}>Admin approval required</option>
+              <option value="community" ${s.review_mode==='community'?'selected':''}>Community review enabled</option>
+            </select>
+            <button class="button" type="submit">Save company settings</button>
+            <p class="status" id="companyStatus"></p>
+          </form>
+        </div>`;
+      $('#companyForm').onsubmit = async e => {
+        e.preventDefault();
+        const st = $('#companyStatus');
+        st.textContent = 'Saving...';
+        try{
+          await api('/api/admin', { method:'POST', body: JSON.stringify({ action:'save_company', settings:{
+            company_name: $('#companyName').value.trim(),
+            support_email: $('#supportEmail').value.trim() || null,
+            review_mode: $('#reviewMode').value
+          })});
+          st.textContent = 'Company settings saved.';
+        }catch(err){ st.textContent = err.message; st.classList.add('err'); }
+      };
+    }
+
+    async function render(){
+      const main = $('#adminMain');
+      main.innerHTML = '<p class="muted">Loading...</p>';
+      try{
+        if(view === 'listings') await renderListings();
+        else if(view === 'users') await renderUsers();
+        else if(view === 'geofence') await renderGeofence();
+        else await renderCompany();
+      }catch(e){
+        main.innerHTML = `<div class="empty-block"><h3>Mission Control unavailable.</h3><p>${escapeHtml(e.message)}</p><p style="margin-top:10px">If geofence fields are missing, run <code>supabase/mission-control-migration.sql</code>.</p></div>`;
+      }
+    }
+
+    (async () => {
+      if(!requireAuth()) return;
+      const ctx = await bindAppHeader({ requireAdmin: true });
+      if(ctx.profile && ctx.profile.role !== 'admin') return;
+      $$('#adminNav button').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === view);
+        b.onclick = () => setView(b.dataset.view);
+      });
+      await render();
+    })();
+  </script>
+</body>
+</html>
