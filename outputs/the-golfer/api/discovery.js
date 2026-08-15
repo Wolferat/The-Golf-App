@@ -6,11 +6,17 @@ function outputText(response) {
 }
 
 export default async function handler(req, res) {
+  // Discovery is intentionally paused. Remove this line only when Golfolio is ready to resume collection.
+  return res.status(503).json({ paused: true, message: 'AI discovery is paused.' });
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   const { OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
   if (!OPENAI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return res.status(500).json({ error: 'Discovery is not configured.' });
   try {
+    const queueResponse = await fetch(`${SUPABASE_URL}/rest/v1/listings?status=eq.pending&select=id`, { headers:{ apikey:SUPABASE_SERVICE_ROLE_KEY, Authorization:`Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } });
+    const queue = await queueResponse.json();
+    if (!queueResponse.ok) throw Error('Could not check the review queue.');
+    if (queue.length >= 25) return res.status(200).json({ queued:0, message:'Discovery stopped: the 25-item review queue is full.' });
     const ai = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST', headers: { Authorization:`Bearer ${OPENAI_API_KEY}`, 'Content-Type':'application/json' },
       body: JSON.stringify({ model:'gpt-5.6-terra', tools:[{ type:'web_search' }], input:`Search for upcoming public golf tournaments, charity golf events, corporate golf events open to the public, public training sessions, and simulator events ${area} United States. Return JSON only: an array named listings. Every item must have title, kind (tournament|training|simulator|course), city, starts_at (ISO date or null), price_note (or null), source_url, source_name, latitude (number or null), longitude (number or null), and discovery_notes. Exclude professional events unless the source is the official organizer page. Never invent data; omit an item when its official source URL, title, and city cannot be confirmed.` })
@@ -19,7 +25,7 @@ export default async function handler(req, res) {
     if (!ai.ok) throw Error(result.error?.message || 'OpenAI search failed');
     const text = outputText(result).replace(/^```json\s*|\s*```$/g, '');
     const candidates = JSON.parse(text).listings || [];
-    const listings = candidates.filter(x => x.title && x.kind && x.city && x.source_url).map(x => ({ ...x, status:'pending', discovered_by:'ai' }));
+    const listings = candidates.filter(x => x.title && x.kind && x.city && x.source_url).slice(0,25-queue.length).map(x => ({ ...x, status:'pending', discovered_by:'ai' }));
     if (listings.length) {
       const saved = await fetch(`${SUPABASE_URL}/rest/v1/listings?on_conflict=source_url`, { method:'POST', headers:{ apikey:SUPABASE_SERVICE_ROLE_KEY, Authorization:`Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type':'application/json', Prefer:'resolution=ignore-duplicates,return=representation' }, body:JSON.stringify(listings) });
       if (!saved.ok) throw Error('Could not save discovery leads');
