@@ -330,9 +330,9 @@
           <p class="settings-note">AI-discovered listings never publish automatically while admin approval is required.</p>
           <form class="form" id="moderationForm">
             ${toggle('discoveryEnabled','AI discovery enabled','When off, the discovery job stays paused and returns a paused response.',!!s.discovery_enabled)}
-            ${toggle('adminApproval','Manual admin approval required','Approved listings are the only ones shown on the public board.',!!s.admin_approval_required)}
+            <div class="settings-note"><strong>Manual admin approval is required.</strong> Every discovered or community listing stays pending until an administrator approves it.</div>
             <label for="pendingMax">Maximum pending-review queue</label>
-            <input id="pendingMax" type="number" min="1" max="200" step="1" value="${Number(s.pending_queue_max||25)}">
+            <input id="pendingMax" type="number" min="1" max="25" step="1" value="${Number(s.pending_queue_max||25)}">
             ${toggle('communitySubs','Allow community submissions','Saved for community lead intake. Does not publish without review while approval is required.',!!s.community_submissions_enabled)}
             <div class="action-row"><button class="button" type="submit">Save moderation rules</button></div>
             <p class="status" id="moderationStatus"></p>
@@ -389,7 +389,6 @@
     }));
     $('#moderationForm').onsubmit=save($('#moderationStatus'),()=>({
       discovery_enabled:$('#discoveryEnabled').checked,
-      admin_approval_required:$('#adminApproval').checked,
       pending_queue_max:Number($('#pendingMax').value||25),
       community_submissions_enabled:$('#communitySubs').checked
     }));

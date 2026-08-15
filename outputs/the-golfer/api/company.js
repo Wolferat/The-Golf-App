@@ -62,10 +62,6 @@ function serviceHeaders() {
 }
 
 function normalize(row = {}) {
-  const adminApproval =
-    row.admin_approval_required != null
-      ? Boolean(row.admin_approval_required)
-      : (row.review_mode || 'admin') === 'admin';
   return {
     company_name: row.company_name || DEFAULTS.company_name,
     support_email: row.support_email || null,
@@ -74,7 +70,7 @@ function normalize(row = {}) {
     location_radius_default: Number(row.location_radius_default ?? DEFAULTS.location_radius_default),
     launch_enabled: row.launch_enabled != null ? Boolean(row.launch_enabled) : DEFAULTS.launch_enabled,
     discovery_enabled: row.discovery_enabled != null ? Boolean(row.discovery_enabled) : DEFAULTS.discovery_enabled,
-    admin_approval_required: adminApproval,
+    admin_approval_required: true,
     pending_queue_max: Number(row.pending_queue_max ?? DEFAULTS.pending_queue_max),
     community_submissions_enabled:
       row.community_submissions_enabled != null
@@ -89,7 +85,7 @@ function normalize(row = {}) {
       row.notify_queue_at_max != null ? Boolean(row.notify_queue_at_max) : DEFAULTS.notify_queue_at_max,
     support_message: row.support_message || null,
     privacy_guidelines: row.privacy_guidelines || null,
-    review_mode: adminApproval ? 'admin' : 'community',
+    review_mode: 'admin',
     updated_at: row.updated_at || null,
     boundary_note:
       'Defined DFW launch boundary: west of Weatherford to east of Royse City, south of Midlothian to just below the Oklahoma border. Polygon editing is not available yet.'
@@ -149,18 +145,17 @@ function pickUpdates(body = {}) {
   }
   if (body.launch_enabled !== undefined) next.launch_enabled = Boolean(body.launch_enabled);
   if (body.discovery_enabled !== undefined) next.discovery_enabled = Boolean(body.discovery_enabled);
-  if (body.admin_approval_required !== undefined) {
-    next.admin_approval_required = Boolean(body.admin_approval_required);
-    next.review_mode = next.admin_approval_required ? 'admin' : 'community';
-  } else if (body.review_mode !== undefined) {
-    if (!['admin', 'community'].includes(body.review_mode)) throw new Error('Invalid review mode.');
-    next.review_mode = body.review_mode;
-    next.admin_approval_required = body.review_mode === 'admin';
+  if (body.admin_approval_required === false || body.review_mode === 'community') {
+    throw new Error('Manual admin approval is required during the current Golfolio phase.');
+  }
+  if (body.admin_approval_required !== undefined || body.review_mode !== undefined) {
+    next.admin_approval_required = true;
+    next.review_mode = 'admin';
   }
   if (body.pending_queue_max !== undefined) {
     const max = Number(body.pending_queue_max);
-    if (!Number.isInteger(max) || max < 1 || max > 200) {
-      throw new Error('Pending queue max must be a whole number between 1 and 200.');
+    if (!Number.isInteger(max) || max < 1 || max > 25) {
+      throw new Error('Pending queue max must be a whole number between 1 and 25.');
     }
     next.pending_queue_max = max;
   }
