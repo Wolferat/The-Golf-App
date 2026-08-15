@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golfolio Codex Handoff</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin:0; font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:#14241c; background:#f7faf6; }
+  main { max-width: 820px; margin: 0 auto; padding: 22px 18px 48px; }
+  h1 { font-size: 1.55rem; margin: 0 0 6px; }
+  .sub { color:#5d7166; margin-bottom: 18px; }
+  h2 { font-size: 1.05rem; margin: 22px 0 8px; color:#0f6241; }
+  pre { white-space: pre-wrap; word-break: break-word; background:#fff; border:1px solid #dfe9e0; border-radius:14px; padding:16px; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .bar { position: sticky; top:0; background:rgba(247,250,246,.92); backdrop-filter: blur(8px); padding:12px 0; border-bottom:1px solid #e2e8df; margin:0 -18px 16px; padding-left:18px; padding-right:18px; }
+  a.button { display:inline-block; padding:10px 14px; border-radius:999px; background:#178357; color:#fff; text-decoration:none; font-weight:700; font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar">
+    <h1>Golfolio → Codex handoff</h1>
+    <p class="sub">Face / aesthetics after the wall. On iPad: tap Share → Save to Files, or open the PDF link.</p>
+    <a class="button" href="./golfolio-codex-handoff.pdf">Open PDF</a>
+  </div>
+  <h2>Full brief</h2>
+  <pre id="body"></pre>
+</main>
+<script>
+document.getElementById('body').textContent = `Golfolio -> Codex handoff (face / aesthetics after the wall)
+
+Roles (keep this rhythm)
+- Composer/Cursor builds the wall: structure, routing, auth wiring, APIs, menu -> page navigation.
+- Codex paints the face after the wall exists: layout polish, spacing, typography, mobile feel - without changing product logic.
+- Never deploy directly to production.
+- Use PR branch -> push -> PR -> merge -> normal Vercel deploy.
+- Keep Golfolio's current look. Do not invent a new brand.
+
+This pass (Codex focus)
+When a signed-in user clicks:
+- My game
+- Find players
+- Account & player info
+- related entries (hero Open my game, mobile nav My game / Players)
+
+...do not open a modal/card.
+Turn those into real pages with normal browser navigation (URL + back button). Better mobile behavior is the goal.
+
+Do not deeply redesign each page's content yet. Next pass will refine individual pages. This pass = page destinations + visual continuity.
+
+
+USER PROMPT / STANDING BRIEF (include + obey)
+
+REPO & PATHS (critical)
+- GitHub repo: Wolferat/The-Golf-App
+- Branch: main (production source of truth)
+- App root on disk: outputs/the-golfer/  <- NOT the repo root
+- Vercel project root is also: outputs/the-golfer
+
+LIVE URLS
+- Production (test here): https://the-golf-app-eight.vercel.app
+- Do NOT use Vercel preview URLs for API testing - Standard Protection blocks /api/* on previews
+
+WHAT THIS APP IS
+- Static index.html + Vercel serverless APIs
+- Supabase auth + profiles
+- Player hub: /api/player (rounds, follows, stats)
+- Admin: /api/admin, /api/company
+- Listings: /api/listings, discovery cron: /api/discovery
+
+KEY FILES
+- outputs/the-golfer/index.html - main UI (signup, login, player hub, modals, JS)
+- outputs/the-golfer/api/*.js - backend routes
+- outputs/the-golfer/supabase/player-hub-migration.sql - run in Supabase if player hub fails
+- outputs/the-golfer/vercel.json - cron config
+
+KNOWN LANDMINES (do not repeat)
+- index.html was corrupted before by truncation which broke ALL buttons
+- Never truncate or shorten index.html - edit surgically or in sections
+- Restoring an old index.html fixes buttons but removes player hub - need BOTH
+- Localhost static preview does NOT serve /api/* - test on production URL only
+
+WHEN SIGNED IN, USER EXPECTS
+- "Open my game" -> player hub (stats, round history, log round)
+- Account menu: My game, Find players, Account & player info
+- Mobile bottom nav on small screens: Home / My game / Players
+
+DEPLOY WORKFLOW
+1. Commit + push via PR (no direct prod deploy from agent)
+2. Verify production HTML still has working signup/login + hub markers
+3. Hard refresh when testing (Ctrl+Shift+R / cache)
+
+ENV (already on Vercel - do not commit secrets)
+- SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+- OPENAI_API_KEY, CRON_SECRET
+
+RULES
+- Minimize scope; don't refactor unrelated code
+- Tell me exactly what URL to test and what button/action to try
+- If email signup fails, check Supabase SMTP (Resend) separately from UI bugs
+- Do not force-push main
+- Never deploy directly to production
+
+
+CURRENT STATE
+
+Working
+- Landing board + listings
+- Sign up works
+- Sign in fix is in PR #6 (cursor/fix-signin-button-20b8) - header Sign in opens login form even if session restore fails
+
+Currently modal/card (convert to pages)
+In outputs/the-golfer/index.html:
+- My game / openPlayerHub('game') -> #playerHubModal
+- Find players / openPlayerHub('players') -> same modal, players view
+- Account & player info / openProfile() -> #profileModal
+- Mobile nav My game / Players -> openPlayerHub(...)
+- Hero Open my game -> openPlayerHub('game')
+
+Keep as modals for now unless trivial:
+- Sign in / Sign up / Reset password
+- Log a round (ok as modal for this pass)
+- Admin company/review (leave alone this pass)
+
+
+PLANNED CHANGE (for Codex to execute / polish)
+
+Routes (simple static pages under outputs/the-golfer/)
+- /hub -> My game
+- /players -> Find players
+- /account -> Account & player info
+- / -> Home / launch board
+
+Wiring
+- Account menu items -> navigate to those pages (not open('#...Modal'))
+- Mobile bottom nav -> same pages
+- Signed-out hit on protected page -> /?login=1 (return-to intended page if easy)
+- Keep using /api/player, /api/config, and localStorage session key golfolio_session
+
+Aesthetics rules (Codex specialty)
+- Preserve existing CSS variables / fonts already in app:
+  - Playfair Display, DM Sans, DM Mono
+  - forest / green / lime / cream / paper palette
+- Same header brand treatment, buttons, radii, spacing language
+- Pages must feel like Golfolio continued, not a different product
+- No purple redesign, no generic dashboard look, no Inter-only restyle
+- Prefer small shared CSS reuse over reinventing styles per page
+- Do not truncate index.html
+- Do not break signup/login
+
+Done means
+1. Click My game -> full page (URL changes)
+2. Click Find players -> full page
+3. Click Account & player info -> full page
+4. Mobile nav My game / Players -> pages
+5. Browser back works
+6. Visual style matches landing
+7. Landing Sign in / Sign up still work
+
+Non-goals this pass
+- No direct production deploy
+- No fake listings/profiles
+- No API rewrite unless required for routing
+- No deep redesign of hub content (next pass)
+
+
+TEST PLAN
+1. After PR merge/deploy: https://the-golf-app-eight.vercel.app
+2. Hard refresh
+3. Sign in
+4. Account menu -> My game -> page, not modal
+5. Find players -> page
+6. Account & player info -> page
+7. Phone width: bottom nav My game / Players -> pages
+8. Browser back works
+9. Landing Sign in / Sign up still work
+
+Composer note
+Composer owns the wall + Sign in fix (PR #6). Codex owns making the new pages look native to Golfolio after navigation exists. Keep PR rhythm. Never deploy to production from the agent.`;
+</script>
+</body>
+</html>
