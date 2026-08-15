@@ -18,6 +18,12 @@
     if(!r.ok)throw Error(d.error||'Could not load settings.');
     return d;
   };
+  const companyApi=async(options={})=>{
+    const r=await fetch('/api/company',{...options,headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json',...(options.headers||{})}});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Could not load company settings.');
+    return d;
+  };
   const config=async()=>{
     const r=await fetch('/api/config'), d=await r.json();
     if(!r.ok)throw Error('Account settings are unavailable.');
@@ -37,7 +43,7 @@
         menu.className='account-menu';
         button.parentElement.append(menu);
       }
-      menu.innerHTML=`<span class="menu-note">Signed in as ${escape(name)}</span><a href="/">Home</a><a href="/hub">My game</a><a href="/players">Find players</a><a href="/settings">Settings</a>${p?.role==='admin'?'<a href="/review">Review pending listings</a>':''}<button type="button" id="menuSignOut">Sign out</button>`;
+      menu.innerHTML=`<span class="menu-note">Signed in as ${escape(name)}</span><a href="/">Home</a><a href="/hub">My game</a><a href="/players">Find players</a><a href="/settings">Settings</a>${p?.role==='admin'?'<a href="/company">Company settings</a><a href="/review">Review pending listings</a>':''}<button type="button" id="menuSignOut">Sign out</button>`;
       menu.classList.toggle('hidden');
       $('#menuSignOut').onclick=()=>{localStorage.removeItem('golfolio_session');location.assign('/')};
     };
@@ -288,6 +294,118 @@
     }));
   };
 
+
+  const mountCompany=async()=>{
+    const me=await api('?view=me');
+    profile=me.profile||{};
+    if(profile.role!=='admin'){
+      $('#pageBody').innerHTML=`<section class="card"><div class="kicker">Admin only</div><h2>This page is for Golfolio admins</h2><p class="settings-note">Company settings control launch area, moderation, and operations. Your player Settings are still available.</p><div class="action-row"><a class="button" href="/settings">Open Settings</a><a class="button ghost" href="/">Back to Home</a></div></section>`;
+      return;
+    }
+    const data=await companyApi();
+    const s=data.settings||{};
+    const toggle=(id,title,copy,checked)=>`<label class="toggle-row" for="${id}"><div><strong>${title}</strong><span>${copy}</span></div><span class="switch"><input id="${id}" type="checkbox" ${checked?'checked':''}><span></span></span></label>`;
+    $('#pageBody').innerHTML=`
+      <div class="settings-stack">
+        <section class="card">
+          <div class="kicker">Launch area</div>
+          <h2>DFW launch boundary</h2>
+          <p class="settings-note">${escape(s.boundary_note||'')}</p>
+          <form class="form" id="launchForm">
+            <label for="launchName">Launch-region name</label>
+            <input id="launchName" maxlength="120" required value="${escape(s.launch_boundary_name||'')}">
+            <label for="launchDescription">Public launch description</label>
+            <textarea id="launchDescription" maxlength="1000" rows="4">${escape(s.launch_description||'')}</textarea>
+            <label for="launchRadius">Location radius default (miles)</label>
+            <input id="launchRadius" type="number" min="1" max="100" step="1" value="${Number(s.location_radius_default||15)}">
+            ${toggle('launchEnabled','Launch enabled','Pause only as an operations flag. The defined DFW boundary text stays the same until a future map editor exists.',!!s.launch_enabled)}
+            <div class="action-row"><button class="button" type="submit">Save launch area</button></div>
+            <p class="status" id="launchStatus"></p>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="kicker">Listing & moderation</div>
+          <h2>Review rules</h2>
+          <p class="settings-note">AI-discovered listings never publish automatically while admin approval is required.</p>
+          <form class="form" id="moderationForm">
+            ${toggle('discoveryEnabled','AI discovery enabled','When off, the discovery job stays paused and returns a paused response.',!!s.discovery_enabled)}
+            ${toggle('adminApproval','Manual admin approval required','Approved listings are the only ones shown on the public board.',!!s.admin_approval_required)}
+            <label for="pendingMax">Maximum pending-review queue</label>
+            <input id="pendingMax" type="number" min="1" max="200" step="1" value="${Number(s.pending_queue_max||25)}">
+            ${toggle('communitySubs','Allow community submissions','Saved for community lead intake. Does not publish without review while approval is required.',!!s.community_submissions_enabled)}
+            <div class="action-row"><button class="button" type="submit">Save moderation rules</button></div>
+            <p class="status" id="moderationStatus"></p>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="kicker">Notifications / operations</div>
+          <h2>Admin notice preferences</h2>
+          <p class="settings-note">Saved for notification delivery setup. Golfolio does not send these emails yet.</p>
+          <form class="form" id="opsForm">
+            <label for="opsEmails">Admin email(s) for operational notices</label>
+            <input id="opsEmails" maxlength="400" placeholder="you@example.com, ops@example.com" value="${escape(s.ops_admin_emails||'')}">
+            ${toggle('notifyEntered','Notify when a listing enters the review queue','Preference only until email delivery is connected.',!!s.notify_listing_entered_queue)}
+            ${toggle('notifyMax','Notify when the queue reaches the maximum','Preference only until email delivery is connected.',!!s.notify_queue_at_max)}
+            <div class="action-row"><button class="button" type="submit">Save operations preferences</button></div>
+            <p class="status" id="opsStatus"></p>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="kicker">Company profile</div>
+          <h2>Public company details</h2>
+          <form class="form" id="profileCompanyForm">
+            <label for="companyName">App / company display name</label>
+            <input id="companyName" maxlength="80" required value="${escape(s.company_name||'Golfolio')}">
+            <label for="supportEmail">Support email</label>
+            <input id="supportEmail" type="email" maxlength="160" value="${escape(s.support_email||'')}">
+            <label for="supportMessage">Public support / contact message</label>
+            <textarea id="supportMessage" maxlength="1000" rows="3">${escape(s.support_message||'')}</textarea>
+            <label for="privacyGuidelines">Privacy / community guidelines text or link</label>
+            <textarea id="privacyGuidelines" maxlength="2000" rows="4">${escape(s.privacy_guidelines||'')}</textarea>
+            <div class="action-row"><button class="button" type="submit">Save company profile</button></div>
+            <p class="status" id="companyProfileStatus"></p>
+          </form>
+        </section>
+      </div>`;
+
+    const save=(statusEl,payload)=>async e=>{
+      e.preventDefault();
+      statusEl.textContent='Saving...';
+      try{
+        const result=await companyApi({method:'PUT',body:JSON.stringify(payload())});
+        statusEl.textContent='Saved.';
+        if(result.settings){/* keep page state fresh without full reload */}
+      }catch(err){statusEl.textContent=err.message}
+    };
+
+    $('#launchForm').onsubmit=save($('#launchStatus'),()=>({
+      launch_boundary_name:$('#launchName').value.trim(),
+      launch_description:$('#launchDescription').value.trim(),
+      location_radius_default:Number($('#launchRadius').value||15),
+      launch_enabled:$('#launchEnabled').checked
+    }));
+    $('#moderationForm').onsubmit=save($('#moderationStatus'),()=>({
+      discovery_enabled:$('#discoveryEnabled').checked,
+      admin_approval_required:$('#adminApproval').checked,
+      pending_queue_max:Number($('#pendingMax').value||25),
+      community_submissions_enabled:$('#communitySubs').checked
+    }));
+    $('#opsForm').onsubmit=save($('#opsStatus'),()=>({
+      ops_admin_emails:$('#opsEmails').value.trim(),
+      notify_listing_entered_queue:$('#notifyEntered').checked,
+      notify_queue_at_max:$('#notifyMax').checked
+    }));
+    $('#profileCompanyForm').onsubmit=save($('#companyProfileStatus'),()=>({
+      company_name:$('#companyName').value.trim(),
+      support_email:$('#supportEmail').value.trim(),
+      support_message:$('#supportMessage').value.trim(),
+      privacy_guidelines:$('#privacyGuidelines').value.trim()
+    }));
+  };
+
   const mountReview=async()=>{
     const d=await api('?view=me');
     profile=d.profile||{};
@@ -338,7 +456,7 @@
     }catch(err){s.textContent=err.message}
   };
 
-  const routes={game:mountGame,players:mountPlayers,settings:mountSettings,account:async()=>location.replace('/settings'),review:mountReview};
+  const routes={game:mountGame,players:mountPlayers,settings:mountSettings,company:mountCompany,account:async()=>location.replace('/settings'),review:mountReview};
   (routes[page]||home)().then(()=>{
     setAccountMenu(profile);
     if(page==='game')enhanceGame().catch(()=>{});
