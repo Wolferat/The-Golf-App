@@ -39,9 +39,12 @@ export default async function handler(req, res) {
         supabase(`rounds?player_id=eq.${user.id}&select=id,course_name,played_on,holes,score,par,putts,fairways_hit,greens_hit,notes,visibility&order=played_on.desc&limit=50`),
         supabase(`player_follows?follower_id=eq.${user.id}&select=following_id`)
       ]);
-      const completed18 = rounds.filter(x => x.holes === 18);
-      const average = completed18.length ? Math.round((completed18.reduce((sum, x) => sum + x.score, 0) / completed18.length) * 10) / 10 : null;
-      return json(res, 200, { profile: profileRows[0] || null, rounds, followingCount: follows.length, stats: { rounds: rounds.length, average, best: rounds.length ? Math.min(...rounds.map(x => x.score)) : null } });
+      const statsFor = holes => {
+        const selected = holes ? rounds.filter(x => x.holes === holes) : rounds;
+        return { rounds:selected.length, average:selected.length ? Math.round((selected.reduce((sum, x) => sum + x.score, 0) / selected.length) * 10) / 10 : null, best:selected.length ? Math.min(...selected.map(x => x.score)) : null };
+      };
+      const nine = statsFor(9), eighteen = statsFor(18), all = statsFor();
+      return json(res, 200, { profile: profileRows[0] || null, rounds, followingCount: follows.length, stats: { rounds:all.rounds, average:eighteen.average, best:all.best, all, nine, eighteen } });
     }
 
     if (req.method === 'POST') {
