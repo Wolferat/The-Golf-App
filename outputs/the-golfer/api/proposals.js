@@ -1,5 +1,5 @@
 import { json, requireAdmin, supabase, writeAudit } from '../lib/admin.js';
-import { PENDING_QUEUE_MAX, leadToListing, pickListingFields, cleanPhotos, cleanReviews, cleanText, isHttpUrl, normalizeBetaArea, withinBetaArea, DEFAULT_BETA_AREA } from '../lib/listings.js';
+import { PENDING_QUEUE_MAX, leadToListing, pickListingFields, cleanPhotos, cleanReviews, cleanText, isHttpUrl, normalizeBetaArea, withinBetaArea, parseCoordinate, DEFAULT_BETA_AREA } from '../lib/listings.js';
 
 async function pendingCount() {
   const rows = await supabase('listings?status=eq.pending&select=id');
@@ -88,9 +88,12 @@ export default async function handler(req, res) {
       const edited = req.body?.lead;
       const lead = edited || proposal.payload?.leads?.[index];
       const area = await loadBetaArea();
-      if (!withinBetaArea(lead?.latitude, lead?.longitude, area)) {
+      const hasCoordinates =
+        parseCoordinate(lead?.latitude, { min: -90, max: 90 }) != null &&
+        parseCoordinate(lead?.longitude, { min: -180, max: 180 }) != null;
+      if (hasCoordinates && !withinBetaArea(lead?.latitude, lead?.longitude, area)) {
         return json(res, 400, {
-          error: `That lead is missing coordinates or sits outside the ${area.radiusMiles}-mile ${area.label} beta area.`,
+          error: `That lead sits outside the ${area.radiusMiles}-mile ${area.label} beta area.`,
           area
         });
       }
