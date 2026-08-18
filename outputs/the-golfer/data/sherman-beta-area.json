@@ -1,0 +1,11 @@
+{
+  "name": "Golfolio Sherman beta listing area",
+  "status": "temporary-beta",
+  "description": "Temporary Golfolio beta geofence. A 30-mile straight-line radius centered on Sherman, Texas. Admins can change the center and radius in Company Settings.",
+  "center": {
+    "label": "Sherman, Texas",
+    "latitude": 33.6357,
+    "longitude": -96.6089
+  },
+  "radius_miles": 30
+}
