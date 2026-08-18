@@ -369,6 +369,34 @@
             <p class="status" id="companyProfileStatus"></p>
           </form>
         </section>
+
+        <section class="card">
+          <div class="kicker">AI operating permissions</div>
+          <h2>Manual AI tools</h2>
+          <p class="settings-note">AI may only propose listing leads or field updates. It cannot publish, overwrite public data, archive, permanently delete, change roles, or change company settings by itself. Every result stays private until an admin approves it.</p>
+          <form id="aiPermsForm">
+            ${toggle('aiSearchEnabled','Enable manual AI listing search','Lets admins run one-off North Texas searches from this page.',!!s.ai_manual_search_enabled)}
+            ${toggle('aiResearchEnabled','Enable AI research / refresh of existing listings','Creates a private before/after proposal. Nothing is applied until you choose fields.',!!s.ai_research_enabled)}
+            ${toggle('autoExpireEnabled','Enable automatic expiration of dated events','Courses and ongoing venues do not expire. This job never calls OpenAI.',s.auto_expire_events_enabled!==false)}
+            <div class="settings-note"><strong>Not available:</strong> AI cannot auto-publish listings or permanently delete them.</div>
+            <div class="action-row"><button class="button" type="submit">Save AI permissions</button></div>
+            <p class="status" id="aiPermsStatus"></p>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="kicker">Manual AI listing search</div>
+          <h2>Find listing leads</h2>
+          <p class="settings-note">Search stays inside the DFW launch boundary. Results are private. If 25 listings are already pending, AI will not run.</p>
+          <form class="form" id="aiSearchForm">
+            <label for="aiQuery">Natural-language search</label>
+            <textarea id="aiQuery" maxlength="400" rows="3" placeholder="Charity golf tournaments near Fort Worth in September"></textarea>
+            <p class="settings-note">Examples: “Public simulator leagues in Dallas” · “Golf clinics near Plano”</p>
+            <div class="action-row"><button class="button" type="submit">Find listing leads</button></div>
+            <p class="status" id="aiSearchStatus"></p>
+          </form>
+          <div id="aiSearchResults"></div>
+        </section>
       </div>`;
 
     const save=(statusEl,payload)=>async e=>{
@@ -403,6 +431,32 @@
       support_message:$('#supportMessage').value.trim(),
       privacy_guidelines:$('#privacyGuidelines').value.trim()
     }));
+    $('#aiPermsForm').onsubmit=save($('#aiPermsStatus'),()=>({
+      ai_manual_search_enabled:$('#aiSearchEnabled').checked,
+      ai_research_enabled:$('#aiResearchEnabled').checked,
+      auto_expire_events_enabled:$('#autoExpireEnabled').checked
+    }));
+    $('#aiSearchForm').onsubmit=async e=>{
+      e.preventDefault();
+      const status=$('#aiSearchStatus'), results=$('#aiSearchResults');
+      status.textContent='Searching official sources...';
+      results.innerHTML='';
+      try{
+        const d=await fetch('/api/ai',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'search',query:$('#aiQuery').value.trim()})}).then(async r=>{const x=await r.json();if(!r.ok)throw Error(x.error||'Search failed.');return x;});
+        status.textContent=`${d.leads.length} private lead${d.leads.length===1?'':'s'} ready for review. Queue ${d.pendingCount}/${d.pendingMax}.`;
+        results.innerHTML=d.leads.length?d.leads.map((lead,i)=>`<article class="card" style="margin-top:12px"><div class="kicker">${escape(lead.kind||'lead')} · ${escape(lead.city||'city unknown')}</div><h2 style="margin-top:8px">${escape(lead.title||'Untitled lead')}</h2><p>${escape(lead.venue_name||'Venue not verified')}</p><p class="settings-note">${escape(lead.relevance_note||'')} ${escape(lead.missing_note||'')} ${escape(lead.confidence||'')}</p><p>Source: ${lead.source_url?`<a href="${escape(lead.source_url)}" target="_blank" rel="noreferrer">${escape(lead.source_name||lead.source_url)}</a>`:'Not verified'}</p><div class="action-row"><button class="button" data-approve-lead="${i}">Save as pending</button><button class="button ghost" data-skip-lead="${i}">Dismiss</button></div><p class="status" data-lead-status="${i}"></p></article>`).join(''):'<p class="settings-note">No verified leads were returned.</p>';
+        results.querySelectorAll('[data-approve-lead]').forEach(button=>button.onclick=async()=>{
+          const i=Number(button.dataset.approveLead), note=results.querySelector(`[data-lead-status="${i}"]`);
+          button.disabled=true; note.textContent='Saving as pending...';
+          try{
+            const r=await fetch('/api/proposals',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'approve_lead',id:d.proposal.id,index:i,lead:d.leads[i]})});
+            const x=await r.json(); if(!r.ok)throw Error(x.error||'Could not save lead.');
+            note.textContent=x.message||'Saved as pending.';
+          }catch(err){button.disabled=false;note.textContent=err.message}
+        });
+        results.querySelectorAll('[data-skip-lead]').forEach(button=>button.onclick=()=>button.closest('article').remove());
+      }catch(err){status.textContent=err.message}
+    };
   };
 
   const mountListings=async()=>{
@@ -410,28 +464,134 @@
     profile=d.profile||{};
     if(profile.role!=='admin')throw Error('Admin access is required to manage listings.');
     const body=$('#pageBody');
-    const load=async()=>{
+    const load=async(view='active')=>{
       body.innerHTML='<section class="card"><p>Loading listings...</p></section>';
-      const r=await fetch('/api/admin',{headers:{Authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/admin?view='+encodeURIComponent(view),{headers:{Authorization:'Bearer '+session.access_token}});
       const data=await r.json();
       if(!r.ok)throw Error(data.error||'Could not load listings.');
-      const listings=data.listings||[],pending=listings.filter(x=>x.status==='pending'),approved=listings.filter(x=>x.status==='approved');
+      const listings=data.listings||[],pending=listings.filter(x=>x.status==='pending'),approved=listings.filter(x=>x.status==='approved'),archived=listings.filter(x=>x.status==='archived'||x.status==='expired');
       const ageDays=x=>Math.max(0,Math.floor((Date.now()-new Date(x.created_at).getTime())/86400000));
       const ageLabel=x=>{const days=ageDays(x);return days===0?'Added today':days===1?'Added 1 day ago':`Added ${days} days ago`};
       const dateLabel=x=>{if(!x.starts_at)return 'Event date not set';const days=Math.ceil((new Date(x.starts_at).getTime()-Date.now())/86400000);if(days<0)return `Event passed ${Math.abs(days)} day${Math.abs(days)===1?'':'s'} ago`;if(days===0)return 'Event is today';return `Event in ${days} day${days===1?'':'s'}`};
-      const oldest=pending.length?Math.max(...pending.map(ageDays)):0;
-      const past=listings.filter(x=>x.starts_at&&new Date(x.starts_at).getTime()<Date.now()).length;
-      const card=x=>`<article class="card"><div class="kicker">${escape(x.status)} · ${escape(x.kind||'Listing')} · ${escape(x.city||'No city')}</div><h2 style="margin-top:8px">${escape(x.title)}</h2><p>${ageLabel(x)} · ${dateLabel(x)}</p><p>Source: ${escape(x.source_name||'Not provided')}</p>${/^https?:\/\//i.test(x.source_url||'')?`<p><a href="${escape(x.source_url)}" target="_blank" rel="noreferrer">Open source</a></p>`:''}${x.status==='pending'?`<div class="action-row"><button class="button" data-id="${escape(x.id)}" data-action="approve">Approve</button><button class="button ghost" data-id="${escape(x.id)}" data-action="reject">Reject</button></div>`:`<p class="settings-note">Approved ${x.reviewed_at?new Date(x.reviewed_at).toLocaleDateString():'listing'}</p>`}</article>`;
-      body.innerHTML=`<section class="stat-grid"><div class="stat"><b>${pending.length}</b><span>Pending approval</span></div><div class="stat"><b>${approved.length}</b><span>Approved listings</span></div><div class="stat"><b>${oldest}</b><span>Oldest pending (days)</span></div><div class="stat"><b>${past}</b><span>Past event dates</span></div></section>${listings.length?`<section class="settings-stack" style="margin-top:18px"><section class="card"><div class="kicker">Needs review</div><h2>Pending approval</h2>${pending.length?`<div class="players">${pending.map(card).join('')}</div>`:'<p class="settings-note">Nothing is waiting for approval.</p>'}</section><section class="card"><div class="kicker">Published</div><h2>Approved listings</h2>${approved.length?`<div class="players">${approved.map(card).join('')}</div>`:'<p class="settings-note">No listings have been approved yet.</p>'}</section></section>`:'<section class="card empty"><h2>No listings yet.</h2><p>Discovery is paused, and no listings have been approved.</p></section>'}`;
-      body.querySelectorAll('[data-id]').forEach(button=>button.onclick=async()=>{
+      const actions=x=>`<div class="action-row"><a class="button ghost" href="/listings/edit/?id=${encodeURIComponent(x.id)}">Edit listing</a>${x.status==='pending'?`<button class="button" data-id="${escape(x.id)}" data-action="approve">Approve</button><button class="button ghost" data-id="${escape(x.id)}" data-action="reject">Reject</button>`:''}${['approved','pending','rejected'].includes(x.status)?`<button class="button ghost" data-id="${escape(x.id)}" data-action="archive">Archive listing</button>`:''}${['archived','expired'].includes(x.status)?`<button class="button" data-id="${escape(x.id)}" data-action="restore">Restore</button>`:''}<button class="button ghost" data-id="${escape(x.id)}" data-action="research">Research / refresh with AI</button><button class="button ghost" data-id="${escape(x.id)}" data-action="delete">Permanently delete</button></div>`;
+      const card=x=>`<article class="card"><div class="kicker">${escape(x.status)} · ${escape(x.kind||'Listing')} · ${escape(x.city||'No city')}</div><h2 style="margin-top:8px">${escape(x.title)}</h2><p>${ageLabel(x)} · ${dateLabel(x)}</p><p>${escape(x.venue_name||'Venue not verified')}</p><p>Source: ${escape(x.source_name||'Not provided')}</p>${/^https?:\/\//i.test(x.source_url||'')?`<p><a href="${escape(x.source_url)}" target="_blank" rel="noreferrer">Open source</a></p>`:''}${actions(x)}<p class="status" data-row-status="${escape(x.id)}"></p></article>`;
+      body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ${view==='active'?'':'ghost'}" data-view="active">Pending & approved</button><button class="button ${view==='archived'?'':'ghost'}" data-view="archived">Archived / expired</button><a class="button ghost" href="/company">Manual AI search</a></div><section class="stat-grid"><div class="stat"><b>${data.pendingCount??pending.length}</b><span>Pending / ${data.pendingMax||25}</span></div><div class="stat"><b>${approved.length}</b><span>Approved</span></div><div class="stat"><b>${archived.length}</b><span>Archived / expired</span></div></section><section class="settings-stack" style="margin-top:18px">${view==='archived'?`<section class="card"><div class="kicker">Not public</div><h2>Archived / expired</h2>${archived.length?`<div class="players">${archived.map(card).join('')}</div>`:'<p class="settings-note">Nothing is archived or expired.</p>'}</section>`:`<section class="card"><div class="kicker">Needs review</div><h2>Pending approval</h2>${pending.length?`<div class="players">${pending.map(card).join('')}</div>`:'<p class="settings-note">Nothing is waiting for approval.</p>'}</section><section class="card"><div class="kicker">Published</div><h2>Approved listings</h2>${approved.length?`<div class="players">${approved.map(card).join('')}</div>`:'<p class="settings-note">No listings have been approved yet.</p>'}</section>`}</section>`;
+      body.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>load(button.dataset.view));
+      body.querySelectorAll('button[data-action]').forEach(button=>button.onclick=async()=>{
+        const id=button.dataset.id, action=button.dataset.action, note=body.querySelector(`[data-row-status="${id}"]`);
+        if(action==='delete'){
+          const ok=confirm('Permanently delete this listing? This is a second confirmation. It will disappear from public and admin active views.');
+          if(!ok)return;
+        }
         button.disabled=true;
-        const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:button.dataset.id,action:button.dataset.action})});
-        if(!resp.ok){const e=await resp.json();alert(e.error||'Review update failed.');button.disabled=false;return}
-        load();
+        try{
+          if(action==='research'){
+            note.textContent='Researching official sources...';
+            const resp=await fetch('/api/ai',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'research',id})});
+            const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Research failed.');
+            location.assign('/listings/edit/?id='+encodeURIComponent(id)+'&proposal='+encodeURIComponent(x.proposal.id));
+            return;
+          }
+          const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action,confirm:action==='delete'?true:undefined})});
+          const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
+          load(view);
+        }catch(err){button.disabled=false;if(note)note.textContent=err.message;else alert(err.message)}
       });
     };
-    await load();
+    await load('active');
   };
+
+  const fieldLabel={title:'Title',description:'Description',venue_name:'Course / venue',city:'City',address:'Address',phone:'Phone',official_website:'Official website',registration_url:'Registration URL',source_url:'Source URL',source_name:'Source name',price_note:'Fees / pricing',starts_at:'Starts',ends_at:'Ends'};
+  const mountListingEdit=async()=>{
+    const me=await api('?view=me');
+    profile=me.profile||{};
+    if(profile.role!=='admin')throw Error('Admin access is required to edit listings.');
+    const id=new URLSearchParams(location.search).get('id');
+    if(!id)throw Error('Missing listing id.');
+    const r=await fetch('/api/admin?id='+encodeURIComponent(id),{headers:{Authorization:'Bearer '+session.access_token}});
+    const data=await r.json();
+    if(!r.ok)throw Error(data.error||'Could not load listing.');
+    const listing=data.listing, proposals=data.proposals||[];
+    const wanted=new URLSearchParams(location.search).get('proposal');
+    const proposal=proposals.find(x=>x.id===wanted&&x.kind==='enrichment'&&x.status==='pending')||proposals.find(x=>x.kind==='enrichment'&&x.status==='pending');
+    const val=x=>x==null?'':String(x);
+    const dt=x=>x?new Date(x).toISOString().slice(0,16):'';
+    $('#pageBody').innerHTML=`<p class="settings-note"><a href="/listings">Back to listings</a></p>
+      <section class="card"><div class="kicker">${escape(listing.status)} · ${escape(listing.kind)}</div><h2>Edit listing</h2>
+      <form class="form" id="editForm">
+        <label for="editTitle">Title</label><input id="editTitle" required maxlength="200" value="${escape(listing.title)}">
+        <label for="editKind">Listing type</label><select id="editKind">${['tournament','course','training','simulator','charity','corporate'].map(k=>`<option value="${k}" ${listing.kind===k?'selected':''}>${k}</option>`).join('')}</select>
+        <label for="editStatus">Status</label><select id="editStatus">${['pending','approved','rejected'].map(k=>`<option value="${k}" ${listing.status===k?'selected':''}>${k}</option>`).join('')}</select>
+        <label for="editDescription">Description</label><textarea id="editDescription" maxlength="2000" rows="4">${escape(listing.description||'')}</textarea>
+        <label for="editVenue">Course / venue name</label><input id="editVenue" maxlength="200" value="${escape(listing.venue_name||'')}">
+        <label for="editCity">City</label><input id="editCity" maxlength="120" value="${escape(listing.city||'')}">
+        <label for="editAddress">Address</label><input id="editAddress" maxlength="300" value="${escape(listing.address||'')}">
+        <label for="editPhone">Phone</label><input id="editPhone" maxlength="40" value="${escape(listing.phone||'')}">
+        <label for="editWebsite">Official website</label><input id="editWebsite" value="${escape(listing.official_website||'')}">
+        <label for="editRegister">Registration URL</label><input id="editRegister" value="${escape(listing.registration_url||'')}">
+        <label for="editSourceName">Source name</label><input id="editSourceName" value="${escape(listing.source_name||'')}">
+        <label for="editSourceUrl">Source URL</label><input id="editSourceUrl" required value="${escape(listing.source_url||'')}">
+        <label for="editStarts">Start date/time</label><input id="editStarts" type="datetime-local" value="${dt(listing.starts_at)}">
+        <label for="editEnds">End date/time</label><input id="editEnds" type="datetime-local" value="${dt(listing.ends_at)}">
+        <label for="editPrice">Fees / pricing note</label><input id="editPrice" maxlength="300" value="${escape(listing.price_note||'')}">
+        <label for="editPhotos">Photos JSON (max 3: url, source_url, source_name)</label><textarea id="editPhotos" rows="4">${escape(JSON.stringify(listing.photos||[],null,2))}</textarea>
+        <label for="editReviews">Review excerpts JSON (max 3, 25 words, each with source_url)</label><textarea id="editReviews" rows="4">${escape(JSON.stringify(listing.reviews||[],null,2))}</textarea>
+        <div class="action-row"><button class="button" type="submit">Save listing</button><button class="button ghost" type="button" id="archiveBtn">Archive listing</button><button class="button ghost" type="button" id="deleteBtn">Permanently delete</button></div>
+        <p class="status" id="editStatusNote"></p>
+      </form></section>
+      <section class="card" style="margin-top:18px"><div class="kicker">AI research</div><h2>Before / after proposal</h2>
+      ${proposal?`<p class="settings-note">Private proposal from ${new Date(proposal.created_at).toLocaleString()}. Public data is unchanged until you apply fields.</p>
+        <div class="compare-grid">${Object.keys(fieldLabel).map(key=>{const current=listing[key]??'';const next=proposal.payload?.fields?.[key]?.value??'';const src=proposal.payload?.fields?.[key];return `<div class="compare-row"><strong>${fieldLabel[key]}</strong><div><span class="kicker">Current</span><p>${escape(val(current))||'—'}</p></div><div><span class="kicker">Proposed</span><p>${escape(val(next))||'—'}</p>${src?.source_url?`<p><a href="${escape(src.source_url)}" target="_blank" rel="noreferrer">${escape(src.source_name||'Source')}</a> · ${escape(src.evidence||'')}</p>`:''}<label class="check"><input type="checkbox" data-apply-field="${key}" ${next&&String(next)!==String(current)?'checked':''}> Apply this field</label></div></div>`}).join('')}</div>
+        <div class="action-row"><button class="button" id="applySelected">Apply selected verified fields</button><button class="button ghost" id="applyAll">Apply all verified fields</button><button class="button ghost" id="rejectProposal">Reject proposal</button></div>
+        <p class="status" id="proposalStatus"></p>`:'<p class="settings-note">No pending research proposal. Use Research / refresh with AI from Listings.</p>'}
+      </section>`;
+    const parseJson=(el,fallback)=>{try{return JSON.parse(el.value||'[]')}catch{throw Error(fallback)}};
+    $('#editForm').onsubmit=async e=>{
+      e.preventDefault();
+      const s=$('#editStatusNote'); s.textContent='Saving...';
+      try{
+        const listingPayload={
+          title:$('#editTitle').value.trim(), kind:$('#editKind').value, status:$('#editStatus').value,
+          description:$('#editDescription').value.trim(), venue_name:$('#editVenue').value.trim(),
+          city:$('#editCity').value.trim(), address:$('#editAddress').value.trim(), phone:$('#editPhone').value.trim(),
+          official_website:$('#editWebsite').value.trim(), registration_url:$('#editRegister').value.trim(),
+          source_name:$('#editSourceName').value.trim(), source_url:$('#editSourceUrl').value.trim(),
+          starts_at:$('#editStarts').value||null, ends_at:$('#editEnds').value||null, price_note:$('#editPrice').value.trim(),
+          photos:parseJson($('#editPhotos'),'Photos JSON is invalid.'), reviews:parseJson($('#editReviews'),'Reviews JSON is invalid.')
+        };
+        const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:'update',listing:listingPayload})});
+        const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Save failed.');
+        s.textContent='Listing saved. Public pages only show approved active listings.';
+      }catch(err){s.textContent=err.message}
+    };
+    $('#archiveBtn').onclick=async()=>{
+      if(!confirm('Archive this listing? It will leave public Home and detail pages immediately.'))return;
+      const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:'archive'})});
+      const x=await resp.json(); if(!resp.ok){$('#editStatusNote').textContent=x.error;return} location.assign('/listings');
+    };
+    $('#deleteBtn').onclick=async()=>{
+      if(!confirm('Permanently delete this listing? This requires this extra confirmation.'))return;
+      const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:'delete',confirm:true})});
+      const x=await resp.json(); if(!resp.ok){$('#editStatusNote').textContent=x.error;return} location.assign('/listings');
+    };
+    if(proposal){
+      const apply=async(fields)=>{
+        const s=$('#proposalStatus'); s.textContent='Applying selected fields...';
+        try{
+          const resp=await fetch('/api/proposals',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:proposal.id,action:'apply',fields,photos:fields.includes('photos'),reviews:fields.includes('reviews')})});
+          const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Apply failed.');
+          s.textContent='Applied. Reloading...'; location.reload();
+        }catch(err){s.textContent=err.message}
+      };
+      $('#applySelected').onclick=()=>apply([...document.querySelectorAll('[data-apply-field]:checked')].map(x=>x.dataset.applyField));
+      $('#applyAll').onclick=()=>apply(Object.keys(fieldLabel));
+      $('#rejectProposal').onclick=async()=>{
+        const resp=await fetch('/api/proposals',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:proposal.id,action:'reject'})});
+        const x=await resp.json(); if(!resp.ok){$('#proposalStatus').textContent=x.error;return} location.assign('/listings/edit/?id='+encodeURIComponent(id));
+      };
+    }
+  };
+
 
   const enhanceGame=async()=>{
     const d=await api('?view=me'),snapshot=document.querySelector('.grid .card:not(.dark)'),history=document.querySelector('.history');
@@ -462,7 +622,7 @@
     }catch(err){s.textContent=err.message}
   };
 
-  const routes={game:mountGame,players:mountPlayers,settings:mountSettings,company:mountCompany,account:async()=>location.replace('/settings'),review:async()=>location.replace('/listings'),listings:mountListings};
+  const routes={game:mountGame,players:mountPlayers,settings:mountSettings,company:mountCompany,account:async()=>location.replace('/settings'),review:async()=>location.replace('/listings'),listings:mountListings,'listing-edit':mountListingEdit};
   (routes[page]||home)().then(()=>{
     setAccountMenu(profile);
     if(page==='game')enhanceGame().catch(()=>{});

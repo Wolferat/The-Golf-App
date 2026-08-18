@@ -17,6 +17,9 @@ const SELECT_FIELDS = [
   'support_message',
   'privacy_guidelines',
   'review_mode',
+  'ai_manual_search_enabled',
+  'ai_research_enabled',
+  'auto_expire_events_enabled',
   'updated_at'
 ].join(',');
 
@@ -37,7 +40,10 @@ const DEFAULTS = {
   notify_queue_at_max: true,
   support_message: null,
   privacy_guidelines: null,
-  review_mode: 'admin'
+  review_mode: 'admin',
+  ai_manual_search_enabled: false,
+  ai_research_enabled: false,
+  auto_expire_events_enabled: true
 };
 
 async function profileFor(token) {
@@ -86,6 +92,10 @@ function normalize(row = {}) {
     support_message: row.support_message || null,
     privacy_guidelines: row.privacy_guidelines || null,
     review_mode: 'admin',
+    ai_manual_search_enabled: Boolean(row.ai_manual_search_enabled),
+    ai_research_enabled: Boolean(row.ai_research_enabled),
+    auto_expire_events_enabled:
+      row.auto_expire_events_enabled != null ? Boolean(row.auto_expire_events_enabled) : true,
     updated_at: row.updated_at || null,
     boundary_note:
       'Defined DFW launch boundary: west of Weatherford to east of Royse City, south of Midlothian to just below the Oklahoma border. Polygon editing is not available yet.'
@@ -174,6 +184,15 @@ function pickUpdates(body = {}) {
   }
   if (body.privacy_guidelines !== undefined) {
     next.privacy_guidelines = cleanText(body.privacy_guidelines, { max: 2000 });
+  }
+  if (body.ai_manual_search_enabled !== undefined) {
+    next.ai_manual_search_enabled = Boolean(body.ai_manual_search_enabled);
+  }
+  if (body.ai_research_enabled !== undefined) {
+    next.ai_research_enabled = Boolean(body.ai_research_enabled);
+  }
+  if (body.auto_expire_events_enabled !== undefined) {
+    next.auto_expire_events_enabled = Boolean(body.auto_expire_events_enabled);
   }
 
   return next;
