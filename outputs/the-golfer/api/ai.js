@@ -123,15 +123,15 @@ export default async function handler(req, res) {
     const action = req.body?.action;
     const flags = await companyAiFlags();
     const pending = await pendingCount();
-    if (pending >= flags.pending_queue_max) {
-      return json(res, 409, {
-        error: `The pending-review queue is at its ${flags.pending_queue_max} listing maximum. Approve or reject existing leads before running AI.`,
-        pendingCount: pending,
-        pendingMax: flags.pending_queue_max
-      });
-    }
 
     if (action === 'search') {
+      if (pending >= flags.pending_queue_max) {
+        return json(res, 409, {
+          error: `The pending-review queue is at its ${flags.pending_queue_max} listing maximum. Approve or reject existing leads before searching for more. Research on existing listings is still available.`,
+          pendingCount: pending,
+          pendingMax: flags.pending_queue_max
+        });
+      }
       if (!flags.ai_manual_search_enabled) {
         return json(res, 403, { error: 'Manual AI listing search is turned off in Company Settings.' });
       }

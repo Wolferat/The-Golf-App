@@ -95,7 +95,7 @@ export default async function handler(req, res) {
 
     if (action === 'delete') {
       if (req.body?.confirm !== true && req.body?.confirm !== 'DELETE') {
-        return json(res, 400, { error: 'Permanent delete requires a separate confirmation.' });
+        return json(res, 400, { error: 'Delete from Golfolio requires a separate confirmation.' });
       }
       const rows = await supabase(`listings?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',

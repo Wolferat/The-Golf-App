@@ -119,8 +119,12 @@ export default async function handler(req, res) {
           };
         }
       }
-      if (req.body?.photos === true && proposal.payload?.photos) patch.photos = proposal.payload.photos;
-      if (req.body?.reviews === true && proposal.payload?.reviews) patch.reviews = proposal.payload.reviews;
+      if (req.body?.photos === true && Array.isArray(proposal.payload?.photos) && proposal.payload.photos.length) {
+        patch.photos = proposal.payload.photos;
+      }
+      if (req.body?.reviews === true && Array.isArray(proposal.payload?.reviews) && proposal.payload.reviews.length) {
+        patch.reviews = proposal.payload.reviews;
+      }
       const updates = pickListingFields({ ...patch, field_sources: sources }, { allowStatus: false });
       if (patch.photos) updates.photos = cleanPhotos(proposal.payload.photos.filter((x) => isHttpUrl(x.url)));
       if (patch.reviews) updates.reviews = cleanReviews(proposal.payload.reviews.filter((x) => cleanText(x.excerpt, 400)));
