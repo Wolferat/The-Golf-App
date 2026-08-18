@@ -71,7 +71,7 @@
   document.head.append(cleanNavStyle);
 
   const homeTheme=document.createElement('style');
-  homeTheme.textContent=`:root{--ink:#102c22;--forest:#0b2119;--green:#178357;--green-dark:#0f6241;--lime:#d8f7a2;--gold:#e7b542;--cream:#f6f5ef;--paper:#fbfbf7;--line:#e2e8df;--muted:#65776d;--white:#fff;--shadow:0 18px 55px rgba(15,48,35,.10)}body{background:var(--paper);letter-spacing:-.01em}.top{min-height:76px;padding:0 max(28px,calc((100% - 1280px)/2));background:rgba(11,33,25,.98);border-bottom:1px solid rgba(216,247,162,.14)}.brand{font-family:'Playfair Display',Georgia,serif;font-size:28px;letter-spacing:-1.4px}.top-note{font-size:13px;font-weight:500;color:#c6d5ca}.button{min-height:44px;padding:11px 18px;border-radius:999px;transition:transform .18s ease,background .18s ease,box-shadow .18s ease}.button.light{border-color:rgba(255,255,255,.35)}.button.ghost{border-color:#d5e7d9;background:#edf5ef;color:var(--green)}.shell{max-width:1280px;padding:62px 28px 90px}.page-head{margin-bottom:25px}.page-head h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(44px,5.2vw,66px);font-weight:600;letter-spacing:-.055em}.page-head p{font-size:16px;line-height:1.6}.kicker{font-family:'DM Mono',monospace}.card{border-color:var(--line);border-radius:22px;box-shadow:0 8px 24px rgba(17,54,36,.045)}.card.dark{background:linear-gradient(115deg,#0c2b20,#174b35)}.card h2{font-family:'Playfair Display',Georgia,serif;letter-spacing:-.045em}.stat{background:#f2f7f1}.hole-switch{background:#eff4ef}.round-note{background:#f2f7f1}.mobile-nav{border-color:rgba(224,232,222,.9);background:rgba(255,255,255,.94);box-shadow:0 13px 35px rgba(7,28,18,.18)}.settings-stack{display:grid;gap:18px}.settings-stack .card h2{margin-bottom:6px}.settings-note{margin:8px 0 0;color:var(--muted);font-size:14px;line-height:1.55}.toggle-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--line)}.toggle-row:first-of-type{border-top:0;padding-top:8px}.toggle-row strong{display:block;font-size:15px}.toggle-row span{display:block;margin-top:4px;color:var(--muted);font-size:13px;line-height:1.45}.switch{position:relative;display:inline-flex;width:48px;height:28px;flex:0 0 auto}.switch input{opacity:0;width:0;height:0}.switch span{position:absolute;inset:0;border-radius:999px;background:#d5e1d7;transition:.18s ease}.switch span:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(7,28,18,.2);transition:.18s ease}.switch input:checked+span{background:var(--green)}.switch input:checked+span:before{transform:translateX(20px)}.category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.category-grid label{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fcfdfb;font-size:14px}.privacy-pill{display:inline-flex;margin-left:8px;padding:3px 8px;border-radius:999px;background:#eaf5e9;color:var(--green);font:500 10px/1 DM Mono,monospace;letter-spacing:.04em;text-transform:uppercase}.privacy-pill.private{background:#f3f0e4;color:#6f5d2d}@media(max-width:760px){.top{min-height:66px;padding-inline:20px}.brand{font-size:24px}.shell{padding:44px 20px 76px}.page-head h1{font-size:42px}.card{padding:23px;border-radius:20px}.category-grid{grid-template-columns:1fr}}`;
+  homeTheme.textContent=`:root{--ink:#102c22;--forest:#0b2119;--green:#178357;--green-dark:#0f6241;--lime:#d8f7a2;--gold:#e7b542;--cream:#f6f5ef;--paper:#fbfbf7;--line:#e2e8df;--muted:#65776d;--white:#fff;--shadow:0 18px 55px rgba(15,48,35,.10)}body{background:var(--paper);letter-spacing:-.01em}.top{min-height:76px;padding:0 max(28px,calc((100% - 1280px)/2));background:rgba(11,33,25,.98);border-bottom:1px solid rgba(216,247,162,.14)}.brand{font-family:'Playfair Display',Georgia,serif;font-size:28px;letter-spacing:-1.4px}.top-note{font-size:13px;font-weight:500;color:#c6d5ca}.button{min-height:44px;padding:11px 18px;border-radius:999px;transition:transform .18s ease,background .18s ease,box-shadow .18s ease}.button.light{border-color:rgba(255,255,255,.35)}.button.ghost{border-color:#d5e7d9;background:#edf5ef;color:var(--green)}.shell{max-width:1280px;padding:62px 28px 90px}.page-head{margin-bottom:25px}.page-head h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(44px,5.2vw,66px);font-weight:600;letter-spacing:-.055em}.page-head p{font-size:16px;line-height:1.6}.kicker{font-family:'DM Mono',monospace}.card{border-color:var(--line);border-radius:22px;box-shadow:0 8px 24px rgba(17,54,36,.045)}.card.dark{background:linear-gradient(115deg,#0c2b20,#174b35)}.card h2{font-family:'Playfair Display',Georgia,serif;letter-spacing:-.045em}.stat{background:#f2f7f1}.hole-switch{background:#eff4ef}.round-note{background:#f2f7f1}.mobile-nav{display:none;border-color:rgba(224,232,222,.9);background:rgba(255,255,255,.94);box-shadow:0 13px 35px rgba(7,28,18,.18)}.settings-stack{display:grid;gap:18px}.settings-stack .card h2{margin-bottom:6px}.settings-note{margin:8px 0 0;color:var(--muted);font-size:14px;line-height:1.55}.toggle-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--line)}.toggle-row:first-of-type{border-top:0;padding-top:8px}.toggle-row strong{display:block;font-size:15px}.toggle-row span{display:block;margin-top:4px;color:var(--muted);font-size:13px;line-height:1.45}.switch{position:relative;display:inline-flex;width:48px;height:28px;flex:0 0 auto}.switch input{opacity:0;width:0;height:0}.switch span{position:absolute;inset:0;border-radius:999px;background:#d5e1d7;transition:.18s ease}.switch span:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(7,28,18,.2);transition:.18s ease}.switch input:checked+span{background:var(--green)}.switch input:checked+span:before{transform:translateX(20px)}.category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.category-grid label{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fcfdfb;font-size:14px}.privacy-pill{display:inline-flex;margin-left:8px;padding:3px 8px;border-radius:999px;background:#eaf5e9;color:var(--green);font:500 10px/1 DM Mono,monospace;letter-spacing:.04em;text-transform:uppercase}.privacy-pill.private{background:#f3f0e4;color:#6f5d2d}@media(max-width:760px){.top{min-height:66px;padding-inline:20px}.brand{font-size:24px}.shell{padding:44px 20px 76px}.page-head h1{font-size:42px}.card{padding:23px;border-radius:20px}.category-grid{grid-template-columns:1fr}}`;
   document.head.append(homeTheme);
 
   const home=()=>location.assign('/');
@@ -159,7 +159,7 @@
           <h2>What you want to hear about</h2>
           <p class="settings-note">These choices are saved now for Golfolio’s future notification system. Nothing is sent yet.</p>
           <form id="notifyForm">
-            ${toggleRow('notifyNearby','Verified events near me','Approved tournaments, courses, and training near your launch area.',s.notify_nearby_events)}
+            ${toggleRow('notifyNearby','Verified events near me','Approved tournaments, courses, and training near the Sherman beta area.',s.notify_nearby_events)}
             ${toggleRow('notifyFollowed','Saved / followed golf activity','Updates related to players and golf you choose to follow.',s.notify_followed_activity)}
             ${toggleRow('notifyProduct','Golfolio product updates','Occasional product notes about Golfolio itself.',s.notify_product_updates)}
             <div class="action-row"><button class="button" type="submit">Save notification choices</button></div>
@@ -299,7 +299,7 @@
     const me=await api('?view=me');
     profile=me.profile||{};
     if(profile.role!=='admin'){
-      $('#pageBody').innerHTML=`<section class="card"><div class="kicker">Admin only</div><h2>This page is for Golfolio admins</h2><p class="settings-note">Company settings control launch area, moderation, and operations. Your player Settings are still available.</p><div class="action-row"><a class="button" href="/settings">Open Settings</a><a class="button ghost" href="/">Back to Home</a></div></section>`;
+      $('#pageBody').innerHTML=`<section class="card"><div class="kicker">Admin only</div><h2>This page is for Golfolio admins</h2><p class="settings-note">Company settings control the beta listing area, moderation, and operations. Your player Settings are still available.</p><div class="action-row"><a class="button" href="/settings">Open Settings</a><a class="button ghost" href="/">Back to Home</a></div></section>`;
       return;
     }
     const data=await companyApi();
@@ -308,18 +308,22 @@
     $('#pageBody').innerHTML=`
       <div class="settings-stack">
         <section class="card">
-          <div class="kicker">Launch area</div>
-          <h2>DFW launch boundary</h2>
-          <p class="settings-note">${escape(s.boundary_note||'')}</p>
+          <div class="kicker">Beta listing area</div>
+          <h2>Sherman beta radius</h2>
+          <p class="settings-note">${escape(s.boundary_note||'Temporary 30-mile radius centered on Sherman, Texas. Change these values as beta users travel.')}</p>
           <form class="form" id="launchForm">
-            <label for="launchName">Launch-region name</label>
-            <input id="launchName" maxlength="120" required value="${escape(s.launch_boundary_name||'')}">
-            <label for="launchDescription">Public launch description</label>
+            <label for="betaLabel">Area label</label>
+            <input id="betaLabel" maxlength="120" required value="${escape(s.beta_area_label||'Sherman, Texas')}">
+            <label for="betaLat">Latitude</label>
+            <input id="betaLat" type="number" step="0.0001" min="-90" max="90" required value="${Number(s.beta_area_latitude ?? 33.6357)}">
+            <label for="betaLng">Longitude</label>
+            <input id="betaLng" type="number" step="0.0001" min="-180" max="180" required value="${Number(s.beta_area_longitude ?? -96.6089)}">
+            <label for="betaRadius">Radius in miles</label>
+            <input id="betaRadius" type="number" min="1" max="250" step="1" required value="${Number(s.beta_area_radius_miles||30)}">
+            <label for="launchDescription">Public area description</label>
             <textarea id="launchDescription" maxlength="1000" rows="4">${escape(s.launch_description||'')}</textarea>
-            <label for="launchRadius">Location radius default (miles)</label>
-            <input id="launchRadius" type="number" min="1" max="100" step="1" value="${Number(s.location_radius_default||15)}">
-            ${toggle('launchEnabled','Launch enabled','Pause only as an operations flag. The defined DFW boundary text stays the same until a future map editor exists.',!!s.launch_enabled)}
-            <div class="action-row"><button class="button" type="submit">Save launch area</button></div>
+            ${toggle('launchEnabled','Beta area enabled','Operations flag only. Manual AI search uses the saved center and radius, not the browser.',!!s.launch_enabled)}
+            <div class="action-row"><button class="button" type="submit">Save beta listing area</button></div>
             <p class="status" id="launchStatus"></p>
           </form>
         </section>
@@ -374,7 +378,7 @@
           <h2>Manual AI tools</h2>
           <p class="settings-note">AI may only propose listing leads or field updates. It cannot publish, overwrite public data, archive, delete listings from Golfolio, change roles, or change company settings by itself. Every result stays private until an admin applies or approves it.</p>
           <form id="aiPermsForm">
-            ${toggle('aiSearchEnabled','Enable manual AI listing search','Lets admins run one-off North Texas searches from this page. There is no AI search cron.',!!s.ai_manual_search_enabled)}
+            ${toggle('aiSearchEnabled','Enable manual AI listing search','Lets admins run one-off searches inside the saved Sherman beta radius. There is no AI search cron.',!!s.ai_manual_search_enabled)}
             ${toggle('aiResearchEnabled','Enable AI research / refresh of existing listings','Creates a private before/after proposal, including photos and review excerpts. Nothing is applied until you choose what to keep.',!!s.ai_research_enabled)}
             ${toggle('autoExpireEnabled','Enable automatic expiration of dated events','Courses and ongoing venues do not expire. This is the only cron, and it never calls OpenAI.',s.auto_expire_events_enabled!==false)}
             <div class="settings-note"><strong>Not available:</strong> AI cannot auto-publish listings or delete them from Golfolio.</div>
@@ -386,11 +390,11 @@
         <section class="card">
           <div class="kicker">Manual AI listing search</div>
           <h2>Find listing leads</h2>
-          <p class="settings-note">Search stays inside the DFW launch boundary. Results are private until you save a lead as pending. If 25 listings are already pending, new search leads cannot be created. Research on existing listings still works.</p>
+          <p class="settings-note">Search stays inside the saved Sherman beta radius. Results are private until you save a lead as pending. Leads without coordinates, or outside the radius, are omitted. If 25 listings are already pending, new search leads cannot be created. Research on existing listings still works.</p>
           <form class="form" id="aiSearchForm">
             <label for="aiQuery">Natural-language search</label>
-            <textarea id="aiQuery" maxlength="400" rows="3" placeholder="Charity golf tournaments near Fort Worth in September"></textarea>
-            <p class="settings-note">Examples: “Public simulator leagues in Dallas” · “Golf clinics near Plano”</p>
+            <textarea id="aiQuery" maxlength="400" rows="3" placeholder="Charity golf tournaments within 30 miles of Sherman"></textarea>
+            <p class="settings-note">Examples: “Public simulator leagues near Sherman” · “Golf clinics in Denison”</p>
             <div class="action-row"><button class="button" type="submit">Find listing leads</button></div>
             <p class="status" id="aiSearchStatus"></p>
           </form>
@@ -409,9 +413,12 @@
     };
 
     $('#launchForm').onsubmit=save($('#launchStatus'),()=>({
-      launch_boundary_name:$('#launchName').value.trim(),
+      beta_area_label:$('#betaLabel').value.trim(),
+      beta_area_latitude:Number($('#betaLat').value),
+      beta_area_longitude:Number($('#betaLng').value),
+      beta_area_radius_miles:Number($('#betaRadius').value||30),
+      launch_boundary_name:$('#betaLabel').value.trim(),
       launch_description:$('#launchDescription').value.trim(),
-      location_radius_default:Number($('#launchRadius').value||15),
       launch_enabled:$('#launchEnabled').checked
     }));
     $('#moderationForm').onsubmit=save($('#moderationStatus'),()=>({
@@ -441,8 +448,8 @@
       results.innerHTML='';
       try{
         const d=await fetch('/api/ai',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'search',query:$('#aiQuery').value.trim()})}).then(async r=>{const x=await r.json();if(!r.ok)throw Error(x.error||'Search failed.');return x;});
-        status.textContent=`${d.leads.length} private lead${d.leads.length===1?'':'s'} ready for review. Queue ${d.pendingCount}/${d.pendingMax}.`;
-        results.innerHTML=d.leads.length?d.leads.map((lead,i)=>`<article class="card" style="margin-top:12px"><div class="kicker">${escape(lead.kind||'lead')} · ${escape(lead.city||'city unknown')}</div><h2 style="margin-top:8px">${escape(lead.title||'Untitled lead')}</h2><p>${escape(lead.venue_name||'Venue not verified')}</p><p class="settings-note">${escape(lead.relevance_note||'')} ${escape(lead.missing_note||'')} ${escape(lead.confidence||'')}</p><p>Source: ${lead.source_url?`<a href="${escape(lead.source_url)}" target="_blank" rel="noreferrer">${escape(lead.source_name||lead.source_url)}</a>`:'Not verified'}</p><div class="action-row"><button class="button" data-approve-lead="${i}">Save as pending</button><button class="button ghost" data-skip-lead="${i}">Dismiss</button></div><p class="status" data-lead-status="${i}"></p></article>`).join(''):'<p class="settings-note">No verified leads were returned.</p>';
+        status.textContent=`${d.leads.length} private lead${d.leads.length===1?'':'s'} inside the beta area${d.omitted?` · ${d.omitted} omitted (missing coordinates or outside radius)`:''}. Queue ${d.pendingCount}/${d.pendingMax}.`;
+        results.innerHTML=d.leads.length?d.leads.map((lead,i)=>`<article class="card" style="margin-top:12px"><div class="kicker">${escape(lead.kind||'lead')} · ${escape(lead.city||'city unknown')}${lead.distance_miles!=null?` · ${lead.distance_miles} mi`:''}</div><h2 style="margin-top:8px">${escape(lead.title||'Untitled lead')}</h2><p>${escape(lead.venue_name||'Venue not verified')}</p><p class="settings-note">${escape(lead.relevance_note||'')} ${escape(lead.missing_note||'')} ${escape(lead.confidence||'')}</p><p>Source: ${lead.source_url?`<a href="${escape(lead.source_url)}" target="_blank" rel="noreferrer">${escape(lead.source_name||lead.source_url)}</a>`:'Not verified'}</p><p class="settings-note">${lead.latitude!=null&&lead.longitude!=null?`${lead.latitude}, ${lead.longitude}`:'Coordinates missing — this lead should not appear.'}</p><div class="action-row"><button class="button" data-approve-lead="${i}">Save as pending</button><button class="button ghost" data-skip-lead="${i}">Dismiss</button></div><p class="status" data-lead-status="${i}"></p></article>`).join(''):'<p class="settings-note">No verified leads were returned inside the Sherman beta area.</p>';
         results.querySelectorAll('[data-approve-lead]').forEach(button=>button.onclick=async()=>{
           const i=Number(button.dataset.approveLead), note=results.querySelector(`[data-lead-status="${i}"]`);
           button.disabled=true; note.textContent='Saving as pending...';

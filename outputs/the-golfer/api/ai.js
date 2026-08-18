@@ -1,6 +1,13 @@
 import { json, requireAdmin, supabase, writeAudit } from '../lib/admin.js';
-import { runListingAi, LAUNCH_AREA, PENDING_QUEUE_MAX } from '../lib/ai.js';
-import { KINDS, leadToListing } from '../lib/listings.js';
+import { runListingAi, PENDING_QUEUE_MAX } from '../lib/ai.js';
+import {
+  KINDS,
+  leadToListing,
+  areaSearchPrompt,
+  normalizeBetaArea,
+  filterLeadsInBetaArea,
+  DEFAULT_BETA_AREA
+} from '../lib/listings.js';
 
 const SEARCH_SCHEMA = {
   type: 'object',
@@ -15,7 +22,7 @@ const SEARCH_SCHEMA = {
         required: [
           'title','kind','city','venue_name','starts_at','ends_at','price_note',
           'official_website','registration_url','phone','source_name','source_url',
-          'description','relevance_note','missing_note','confidence'
+          'description','relevance_note','missing_note','confidence','latitude','longitude'
         ],
         properties: {
           title: { type: ['string', 'null'] },
@@ -33,7 +40,9 @@ const SEARCH_SCHEMA = {
           description: { type: ['string', 'null'] },
           relevance_note: { type: ['string', 'null'] },
           missing_note: { type: ['string', 'null'] },
-          confidence: { type: ['string', 'null'] }
+          confidence: { type: ['string', 'null'] },
+          latitude: { type: ['number', 'null'] },
+          longitude: { type: ['number', 'null'] }
         }
       }
     }
@@ -101,6 +110,17 @@ async function pendingCount() {
   return Array.isArray(rows) ? rows.length : 0;
 }
 
+async function loadBetaArea() {
+  try {
+    const rows = await supabase(
+      'app_settings?id=eq.true&select=beta_area_label,beta_area_latitude,beta_area_longitude,beta_area_radius_miles'
+    );
+    return normalizeBetaArea(rows[0] || DEFAULT_BETA_AREA);
+  } catch {
+    return normalizeBetaArea(DEFAULT_BETA_AREA);
+  }
+}
+
 async function companyAiFlags() {
   const rows = await supabase(
     'app_settings?id=eq.true&select=ai_manual_search_enabled,ai_research_enabled,pending_queue_max,admin_approval_required'
@@ -137,22 +157,26 @@ export default async function handler(req, res) {
       }
       const query = String(req.body?.query || '').trim();
       if (query.length < 8) return json(res, 400, { error: 'Enter a more specific search, at least 8 characters.' });
+      const area = await loadBetaArea();
+      const areaText = areaSearchPrompt(area);
       const parsed = await runListingAi({
         adminId: auth.profile.id,
         schemaName: 'listing_leads',
         schema: SEARCH_SCHEMA,
-        input: `Search for public golf listings ${LAUNCH_AREA}. Admin search: ${query}
+        input: `Search for public golf listings ${areaText}. Admin search: ${query}
 
 Return JSON only. Rules:
-- Stay inside the launch boundary unless the query is clearly outside, in which case return no leads.
+- Stay inside the ${area.radiusMiles}-mile radius of ${area.label}. If the query is clearly outside that beta area, return no leads.
+- Include latitude and longitude for every lead when those coordinates can be verified from the source. Use null when unknown.
 - Prefer official organizer, course, venue, or registration websites.
 - Exclude professional tour events unless the official organizer page is used and the listing only links out.
-- Never invent titles, prices, phones, websites, dates, or quotes. Use null when unknown.
+- Never invent titles, prices, phones, websites, dates, coordinates, or quotes. Use null when unknown.
 - Every factual value must include source_url and source_name.
 - kind must be one of: ${KINDS.join(', ')}.
 - Do not publish anything. These are private leads for admin review.`
       });
-      const leads = (parsed.leads || []).filter((x) => x?.title && x?.source_url);
+      const filtered = filterLeadsInBetaArea(parsed.leads || [], area);
+      const leads = filtered.kept;
       const [proposal] = await supabase('listing_proposals', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
@@ -160,7 +184,7 @@ Return JSON only. Rules:
           kind: 'search',
           status: 'pending',
           query,
-          payload: { leads },
+          payload: { leads, omitted: filtered.omitted, area },
           created_by: auth.profile.id
         })
       });
@@ -168,9 +192,16 @@ Return JSON only. Rules:
         proposalId: proposal.id,
         action: 'ai_search',
         actorId: auth.profile.id,
-        details: { query, count: leads.length }
+        details: { query, count: leads.length, omitted: filtered.omitted.length, area }
       });
-      return json(res, 200, { proposal, leads, pendingCount: pending, pendingMax: flags.pending_queue_max });
+      return json(res, 200, {
+        proposal,
+        leads,
+        omitted: filtered.omitted.length,
+        area,
+        pendingCount: pending,
+        pendingMax: flags.pending_queue_max
+      });
     }
 
     if (action === 'research') {
@@ -180,11 +211,12 @@ Return JSON only. Rules:
       const id = String(req.body?.id || '').trim();
       const [listing] = await supabase(`listings?id=eq.${encodeURIComponent(id)}&select=id,title,kind,city,venue_name,source_url,source_name,official_website,status`);
       if (!listing || listing.status === 'deleted') return json(res, 404, { error: 'Listing not found.' });
+      const area = await loadBetaArea();
       const parsed = await runListingAi({
         adminId: auth.profile.id,
         schemaName: 'listing_enrichment',
         schema: RESEARCH_SCHEMA,
-        input: `Research and refresh this existing Golfolio listing using official sources ${LAUNCH_AREA}.
+        input: `Research and refresh this existing Golfolio listing using official sources ${areaSearchPrompt(area)}.
 Current listing JSON: ${JSON.stringify(listing)}
 
 Return JSON only. Rules:

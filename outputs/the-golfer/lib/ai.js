@@ -1,9 +1,9 @@
 import { createHash } from 'crypto';
+import { areaSearchPrompt, DEFAULT_BETA_AREA } from './listings.js';
 
 export const AI_MODEL = 'gpt-5.6-terra';
 export const PENDING_QUEUE_MAX = 25;
-export const LAUNCH_AREA =
-  'Golfolio North Texas launch area: west of Weatherford, east of Royse City, south of the Oklahoma border, and north of Midlothian, Texas, United States';
+export const DEFAULT_SEARCH_AREA = areaSearchPrompt(DEFAULT_BETA_AREA);
 
 export function safetyIdentifier(userId) {
   return createHash('sha256').update(`golfolio-admin:${userId}`).digest('hex').slice(0, 32);

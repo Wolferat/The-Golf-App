@@ -21,12 +21,12 @@
     const site=listing.registration_url||listing.official_website||listing.source_url;
     const photos=(listing.photos||[]).filter(x=>x?.url).slice(0,3);
     const reviews=(listing.reviews||[]).filter(x=>x?.excerpt&&x?.source_url).slice(0,3);
-    root.innerHTML=`<div class="page-head"><div><div class="kicker">${escape(listing.kind||'Listing')}</div><h1>${escape(listing.title)}</h1><p>${escape(listing.venue_name||listing.city||'North Texas')}</p></div></div>
+    root.innerHTML=`<div class="page-head"><div><div class="kicker">${escape(listing.kind||'Listing')}</div><h1>${escape(listing.title)}</h1><p>${escape(listing.venue_name||listing.city||'Sherman area')}</p></div></div>
       <section class="card">
         ${listing.description?`<p>${escape(listing.description)}</p>`:'<p class="settings-note">A public description has not been verified yet.</p>'}
         <div class="detail-grid">
           <div><strong>Course / venue</strong><p>${escape(listing.venue_name||'Not verified')}</p></div>
-          <div><strong>City</strong><p>${escape(listing.city||'North Texas')}</p></div>
+          <div><strong>City</strong><p>${escape(listing.city||'Sherman area')}</p></div>
           <div><strong>Address</strong><p>${escape(listing.address||'Not verified')}</p></div>
           <div><strong>When</strong><p>${escape([when(listing.starts_at),when(listing.ends_at)].filter(Boolean).join(' – ')||'Date not verified')}</p></div>
           <div><strong>Fees</strong><p>${escape(listing.price_note||'See the official source for pricing.')}</p></div>

@@ -1,5 +1,5 @@
 import { json, requireAdmin, supabase, writeAudit } from '../lib/admin.js';
-import { PENDING_QUEUE_MAX, leadToListing, pickListingFields, cleanPhotos, cleanReviews, cleanText, isHttpUrl } from '../lib/listings.js';
+import { PENDING_QUEUE_MAX, leadToListing, pickListingFields, cleanPhotos, cleanReviews, cleanText, isHttpUrl, normalizeBetaArea, withinBetaArea, DEFAULT_BETA_AREA } from '../lib/listings.js';
 
 async function pendingCount() {
   const rows = await supabase('listings?status=eq.pending&select=id');
@@ -11,6 +11,17 @@ async function pendingQueueMax() {
   const n = Number(rows[0]?.pending_queue_max);
   const fallback = Number.isFinite(n) ? n : PENDING_QUEUE_MAX;
   return Math.min(Math.max(Math.trunc(fallback), 1), PENDING_QUEUE_MAX);
+}
+
+async function loadBetaArea() {
+  try {
+    const rows = await supabase(
+      'app_settings?id=eq.true&select=beta_area_label,beta_area_latitude,beta_area_longitude,beta_area_radius_miles'
+    );
+    return normalizeBetaArea(rows[0] || DEFAULT_BETA_AREA);
+  } catch {
+    return normalizeBetaArea(DEFAULT_BETA_AREA);
+  }
 }
 
 function proposedFieldValue(field) {
@@ -76,6 +87,13 @@ export default async function handler(req, res) {
       const index = Number(req.body?.index);
       const edited = req.body?.lead;
       const lead = edited || proposal.payload?.leads?.[index];
+      const area = await loadBetaArea();
+      if (!withinBetaArea(lead?.latitude, lead?.longitude, area)) {
+        return json(res, 400, {
+          error: `That lead is missing coordinates or sits outside the ${area.radiusMiles}-mile ${area.label} beta area.`,
+          area
+        });
+      }
       const listing = leadToListing(lead || {}, { discoveredBy: 'ai' });
       if (!listing) return json(res, 400, { error: 'That lead is missing a title, kind, city, or official source URL.' });
       const rows = await supabase('listings?on_conflict=source_url', {

@@ -4,6 +4,92 @@ export const EVENT_KINDS = ['tournament', 'training', 'simulator', 'charity', 'c
 export const ADMIN_STATUSES = ['pending', 'approved', 'rejected', 'expired', 'archived', 'deleted'];
 export const PENDING_QUEUE_MAX = 25;
 
+export const DEFAULT_BETA_AREA = {
+  label: 'Sherman, Texas',
+  latitude: 33.6357,
+  longitude: -96.6089,
+  radiusMiles: 30
+};
+
+export function parseCoordinate(value, { min, max } = { min: -90, max: 90 }) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+}
+
+export function milesBetween(aLat, aLng, bLat, bLng) {
+  const lat1 = Number(aLat);
+  const lng1 = Number(aLng);
+  const lat2 = Number(bLat);
+  const lng2 = Number(bLng);
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return null;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const earthMiles = 3958.7613;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthMiles * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export function normalizeBetaArea(row = {}) {
+  const latitude =
+    parseCoordinate(row.beta_area_latitude ?? row.latitude, { min: -90, max: 90 }) ??
+    DEFAULT_BETA_AREA.latitude;
+  const longitude =
+    parseCoordinate(row.beta_area_longitude ?? row.longitude, { min: -180, max: 180 }) ??
+    DEFAULT_BETA_AREA.longitude;
+  const radiusRaw = Number(row.beta_area_radius_miles ?? row.radiusMiles ?? row.radius_miles);
+  const radiusMiles = Number.isFinite(radiusRaw)
+    ? Math.min(Math.max(Math.trunc(radiusRaw), 1), 250)
+    : DEFAULT_BETA_AREA.radiusMiles;
+  const label = String(row.beta_area_label || row.label || DEFAULT_BETA_AREA.label).trim() || DEFAULT_BETA_AREA.label;
+  return { label, latitude, longitude, radiusMiles };
+}
+
+export function areaSearchPrompt(area = DEFAULT_BETA_AREA) {
+  const next = normalizeBetaArea({
+    beta_area_label: area.label,
+    beta_area_latitude: area.latitude,
+    beta_area_longitude: area.longitude,
+    beta_area_radius_miles: area.radiusMiles
+  });
+  return `Golfolio beta listing area: a ${next.radiusMiles}-mile straight-line radius centered on ${next.label} (latitude ${next.latitude}, longitude ${next.longitude}), Texas, United States`;
+}
+
+export function withinBetaArea(lat, lng, area = DEFAULT_BETA_AREA) {
+  const miles = milesBetween(lat, lng, area.latitude, area.longitude);
+  return miles != null && miles <= area.radiusMiles;
+}
+
+export function leadDistanceMiles(lead, area = DEFAULT_BETA_AREA) {
+  const miles = milesBetween(lead?.latitude, lead?.longitude, area.latitude, area.longitude);
+  return miles == null ? null : Math.round(miles * 10) / 10;
+}
+
+export function filterLeadsInBetaArea(leads, area = DEFAULT_BETA_AREA) {
+  const kept = [];
+  const omitted = [];
+  for (const lead of Array.isArray(leads) ? leads : []) {
+    if (!lead?.title || !isHttpUrl(lead.source_url || lead.official_website || lead.registration_url)) {
+      omitted.push({ title: lead?.title || null, reason: 'incomplete' });
+      continue;
+    }
+    if (!withinBetaArea(lead.latitude, lead.longitude, area)) {
+      omitted.push({
+        title: lead.title,
+        reason: 'missing_coordinates_or_outside_radius',
+        latitude: lead.latitude ?? null,
+        longitude: lead.longitude ?? null
+      });
+      continue;
+    }
+    kept.push({ ...lead, distance_miles: leadDistanceMiles(lead, area) });
+  }
+  return { kept, omitted };
+}
+
 export function isHttpUrl(value) {
   try {
     const url = new URL(String(value || ''));
@@ -109,7 +195,9 @@ export function publicListing(row) {
     starts_at: row.starts_at || null,
     ends_at: row.ends_at || null,
     photos: Array.isArray(row.photos) ? row.photos.slice(0, 3) : [],
-    reviews: Array.isArray(row.reviews) ? row.reviews.slice(0, 3) : []
+    reviews: Array.isArray(row.reviews) ? row.reviews.slice(0, 3) : [],
+    latitude: parseCoordinate(row.latitude, { min: -90, max: 90 }),
+    longitude: parseCoordinate(row.longitude, { min: -180, max: 180 })
   };
 }
 
@@ -185,6 +273,8 @@ export function leadToListing(lead, { discoveredBy = 'ai' } = {}) {
     discovered_by: discoveredBy,
     discovery_notes: cleanText([lead.relevance_note, lead.missing_note, lead.confidence].filter(Boolean).join(' · '), 1000),
     photos: [],
-    reviews: []
+    reviews: [],
+    latitude: parseCoordinate(lead.latitude, { min: -90, max: 90 }),
+    longitude: parseCoordinate(lead.longitude, { min: -180, max: 180 })
   };
 }
