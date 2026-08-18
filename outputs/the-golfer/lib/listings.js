@@ -12,6 +12,7 @@ export const DEFAULT_BETA_AREA = {
 };
 
 export function parseCoordinate(value, { min, max } = { min: -90, max: 90 }) {
+  if (value == null || String(value).trim() === '') return null;
   const n = Number(value);
   if (!Number.isFinite(n) || n < min || n > max) return null;
   return n;
@@ -76,7 +77,10 @@ export function filterLeadsInBetaArea(leads, area = DEFAULT_BETA_AREA) {
       omitted.push({ title: lead?.title || null, reason: 'incomplete' });
       continue;
     }
-    if (!withinBetaArea(lead.latitude, lead.longitude, area)) {
+    const hasCoordinates =
+      parseCoordinate(lead.latitude, { min: -90, max: 90 }) != null &&
+      parseCoordinate(lead.longitude, { min: -180, max: 180 }) != null;
+    if (hasCoordinates && !withinBetaArea(lead.latitude, lead.longitude, area)) {
       omitted.push({
         title: lead.title,
         reason: 'missing_coordinates_or_outside_radius',
@@ -85,7 +89,11 @@ export function filterLeadsInBetaArea(leads, area = DEFAULT_BETA_AREA) {
       });
       continue;
     }
-    kept.push({ ...lead, distance_miles: leadDistanceMiles(lead, area) });
+    kept.push({
+      ...lead,
+      distance_miles: hasCoordinates ? leadDistanceMiles(lead, area) : null,
+      area_review_required: !hasCoordinates
+    });
   }
   return { kept, omitted };
 }
@@ -259,6 +267,7 @@ export function leadToListing(lead, { discoveredBy = 'ai' } = {}) {
     title,
     kind,
     city: cleanText(lead.city, 120),
+    address: cleanText(lead.address, 300),
     venue_name: cleanText(lead.venue_name || lead.course_name, 200),
     description: cleanText(lead.description, 2000),
     starts_at: lead.starts_at ? new Date(lead.starts_at).toISOString() : null,
