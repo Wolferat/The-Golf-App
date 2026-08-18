@@ -6,6 +6,13 @@ async function pendingCount() {
   return Array.isArray(rows) ? rows.length : 0;
 }
 
+async function pendingQueueMax() {
+  const rows = await supabase('app_settings?id=eq.true&select=pending_queue_max');
+  const n = Number(rows[0]?.pending_queue_max);
+  const fallback = Number.isFinite(n) ? n : PENDING_QUEUE_MAX;
+  return Math.min(Math.max(Math.trunc(fallback), 1), PENDING_QUEUE_MAX);
+}
+
 function proposedFieldValue(field) {
   if (field == null) return undefined;
   if (typeof field === 'object' && 'value' in field) return field.value;
@@ -58,8 +65,13 @@ export default async function handler(req, res) {
     if (action === 'approve_lead') {
       if (proposal.kind !== 'search') return json(res, 400, { error: 'This proposal is not a search lead.' });
       const pending = await pendingCount();
-      if (pending >= PENDING_QUEUE_MAX) {
-        return json(res, 409, { error: `The pending-review queue is full (${PENDING_QUEUE_MAX}).` });
+      const pendingMax = await pendingQueueMax();
+      if (pending >= pendingMax) {
+        return json(res, 409, {
+          error: `The pending-review queue is full (${pendingMax}).`,
+          pendingCount: pending,
+          pendingMax
+        });
       }
       const index = Number(req.body?.index);
       const edited = req.body?.lead;
