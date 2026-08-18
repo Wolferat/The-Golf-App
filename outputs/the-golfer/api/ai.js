@@ -20,7 +20,7 @@ const SEARCH_SCHEMA = {
         type: 'object',
         additionalProperties: false,
         required: [
-          'title','kind','city','venue_name','starts_at','ends_at','price_note',
+          'title','kind','city','address','venue_name','starts_at','ends_at','price_note',
           'official_website','registration_url','phone','source_name','source_url',
           'description','relevance_note','missing_note','confidence','latitude','longitude'
         ],
@@ -28,6 +28,7 @@ const SEARCH_SCHEMA = {
           title: { type: ['string', 'null'] },
           kind: { type: ['string', 'null'] },
           city: { type: ['string', 'null'] },
+          address: { type: ['string', 'null'] },
           venue_name: { type: ['string', 'null'] },
           starts_at: { type: ['string', 'null'] },
           ends_at: { type: ['string', 'null'] },
@@ -167,10 +168,10 @@ export default async function handler(req, res) {
 
 Return JSON only. Rules:
 - Stay inside the ${area.radiusMiles}-mile radius of ${area.label}. If the query is clearly outside that beta area, return no leads.
-- Include latitude and longitude for every lead when those coordinates can be verified from the source. Use null when unknown.
+- Include the street address for every lead when it can be verified from the source. Include latitude and longitude when available; use null when unknown.
 - Prefer official organizer, course, venue, or registration websites.
 - Exclude professional tour events unless the official organizer page is used and the listing only links out.
-- Never invent titles, prices, phones, websites, dates, coordinates, or quotes. Use null when unknown.
+- Never invent titles, addresses, prices, phones, websites, dates, coordinates, or quotes. Use null when unknown.
 - Every factual value must include source_url and source_name.
 - kind must be one of: ${KINDS.join(', ')}.
 - Do not publish anything. These are private leads for admin review.`
