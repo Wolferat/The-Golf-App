@@ -32,8 +32,9 @@ set
   location_radius_default = coalesce(location_radius_default, 15),
   launch_enabled = coalesce(launch_enabled, true),
   discovery_enabled = coalesce(discovery_enabled, false),
-  admin_approval_required = coalesce(admin_approval_required, true),
-  pending_queue_max = coalesce(pending_queue_max, 25),
+  admin_approval_required = true,
+  review_mode = 'admin',
+  pending_queue_max = least(greatest(coalesce(pending_queue_max, 25), 1), 25),
   community_submissions_enabled = coalesce(community_submissions_enabled, false),
   notify_listing_entered_queue = coalesce(notify_listing_entered_queue, true),
   notify_queue_at_max = coalesce(notify_queue_at_max, true),
@@ -52,7 +53,7 @@ alter table public.app_settings
   drop constraint if exists app_settings_pending_queue_max_check;
 alter table public.app_settings
   add constraint app_settings_pending_queue_max_check
-  check (pending_queue_max between 1 and 200);
+  check (pending_queue_max between 1 and 25);
 
 alter table public.app_settings enable row level security;
 

@@ -1,5 +1,21 @@
 const json = (res, status, body) => res.status(status).json(body);
 
+function approvedEmailRedirect(requestedUrl) {
+  const configuredOrigin = String(process.env.GOLFOLIO_APP_URL || '').replace(/\/+$/, '');
+  const allowedOrigins = new Set([
+    'https://the-golf-app-eight.vercel.app',
+    configuredOrigin
+  ].filter(Boolean));
+
+  try {
+    const redirect = new URL(String(requestedUrl || ''));
+    if (!allowedOrigins.has(redirect.origin)) return null;
+    return `${redirect.origin}/settings`;
+  } catch {
+    return null;
+  }
+}
+
 const DEFAULTS = {
   notify_nearby_events: true,
   notify_followed_activity: true,
@@ -119,7 +135,10 @@ export default async function handler(req, res) {
         const url = process.env.SUPABASE_URL;
         const anon = process.env.SUPABASE_ANON_KEY;
         const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
-        const redirectTo = String(req.body?.redirectTo || '').trim() || undefined;
+        const redirectTo = approvedEmailRedirect(req.body?.redirectTo);
+        if (!redirectTo) {
+          return json(res, 400, { error: 'Email confirmation must return to an approved Golfolio address.' });
+        }
         const response = await fetch(`${url}/auth/v1/user`, {
           method: 'PUT',
           headers: {

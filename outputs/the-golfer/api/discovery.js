@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const queueMax = Math.min(Math.max(Number(controls.pending_queue_max) || 25, 1), 200);
+    const queueMax = Math.min(Math.max(Number(controls.pending_queue_max) || 25, 1), 25);
     const queueResponse = await fetch(`${SUPABASE_URL}/rest/v1/listings?status=eq.pending&select=id`, {
       headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }
     });

@@ -43,7 +43,7 @@
         menu.className='account-menu';
         button.parentElement.append(menu);
       }
-      menu.innerHTML=`<span class="menu-note">Signed in as ${escape(name)}</span><a href="/">Home</a><a href="/hub">My game</a><a href="/players">Find players</a><a href="/settings">Settings</a>${p?.role==='admin'?'<a href="/company">Company settings</a><a href="/review">Review pending listings</a>':''}<button type="button" id="menuSignOut">Sign out</button>`;
+      menu.innerHTML=`<span class="menu-note">Signed in as ${escape(name)}</span><a href="/">Home</a><a href="/hub">My game</a><a href="/players">Find players</a><a href="/settings">Settings</a>${p?.role==='admin'?'<a href="/company">Company settings</a><a href="/listings">Listings</a>':''}<button type="button" id="menuSignOut">Sign out</button>`;
       menu.classList.toggle('hidden');
       $('#menuSignOut').onclick=()=>{localStorage.removeItem('golfolio_session');location.assign('/')};
     };
@@ -330,9 +330,9 @@
           <p class="settings-note">AI-discovered listings never publish automatically while admin approval is required.</p>
           <form class="form" id="moderationForm">
             ${toggle('discoveryEnabled','AI discovery enabled','When off, the discovery job stays paused and returns a paused response.',!!s.discovery_enabled)}
-            ${toggle('adminApproval','Manual admin approval required','Approved listings are the only ones shown on the public board.',!!s.admin_approval_required)}
+            <div class="settings-note"><strong>Manual admin approval is required.</strong> Every discovered or community listing stays pending until an administrator approves it.</div>
             <label for="pendingMax">Maximum pending-review queue</label>
-            <input id="pendingMax" type="number" min="1" max="200" step="1" value="${Number(s.pending_queue_max||25)}">
+            <input id="pendingMax" type="number" min="1" max="25" step="1" value="${Number(s.pending_queue_max||25)}">
             ${toggle('communitySubs','Allow community submissions','Saved for community lead intake. Does not publish without review while approval is required.',!!s.community_submissions_enabled)}
             <div class="action-row"><button class="button" type="submit">Save moderation rules</button></div>
             <p class="status" id="moderationStatus"></p>
@@ -389,7 +389,6 @@
     }));
     $('#moderationForm').onsubmit=save($('#moderationStatus'),()=>({
       discovery_enabled:$('#discoveryEnabled').checked,
-      admin_approval_required:$('#adminApproval').checked,
       pending_queue_max:Number($('#pendingMax').value||25),
       community_submissions_enabled:$('#communitySubs').checked
     }));
@@ -406,17 +405,24 @@
     }));
   };
 
-  const mountReview=async()=>{
+  const mountListings=async()=>{
     const d=await api('?view=me');
     profile=d.profile||{};
-    if(profile.role!=='admin')throw Error('Admin access is required to review listings.');
+    if(profile.role!=='admin')throw Error('Admin access is required to manage listings.');
     const body=$('#pageBody');
     const load=async()=>{
-      body.innerHTML='<section class="card"><p>Loading pending listings...</p></section>';
+      body.innerHTML='<section class="card"><p>Loading listings...</p></section>';
       const r=await fetch('/api/admin',{headers:{Authorization:'Bearer '+session.access_token}});
       const data=await r.json();
-      if(!r.ok)throw Error(data.error||'Could not load pending listings.');
-      body.innerHTML=data.listings.length?`<section class="players">${data.listings.map(x=>`<article class="card"><div class="kicker">${escape(x.kind||'Listing')} · ${escape(x.city||'No city')}</div><h2 style="margin-top:8px">${escape(x.title)}</h2><p>Source: ${escape(x.source_name||'Not provided')}</p>${/^https?:\/\//i.test(x.source_url||'')?`<p><a href="${escape(x.source_url)}" target="_blank" rel="noreferrer">Open source</a></p>`:''}<div class="action-row"><button class="button" data-id="${escape(x.id)}" data-action="approve">Approve</button><button class="button ghost" data-id="${escape(x.id)}" data-action="reject">Reject</button></div></article>`).join('')}</section>`:'<section class="card empty"><h2>Nothing is waiting for review.</h2><p>Discovery is currently paused, so the queue will stay quiet until you choose to resume it.</p></section>';
+      if(!r.ok)throw Error(data.error||'Could not load listings.');
+      const listings=data.listings||[],pending=listings.filter(x=>x.status==='pending'),approved=listings.filter(x=>x.status==='approved');
+      const ageDays=x=>Math.max(0,Math.floor((Date.now()-new Date(x.created_at).getTime())/86400000));
+      const ageLabel=x=>{const days=ageDays(x);return days===0?'Added today':days===1?'Added 1 day ago':`Added ${days} days ago`};
+      const dateLabel=x=>{if(!x.starts_at)return 'Event date not set';const days=Math.ceil((new Date(x.starts_at).getTime()-Date.now())/86400000);if(days<0)return `Event passed ${Math.abs(days)} day${Math.abs(days)===1?'':'s'} ago`;if(days===0)return 'Event is today';return `Event in ${days} day${days===1?'':'s'}`};
+      const oldest=pending.length?Math.max(...pending.map(ageDays)):0;
+      const past=listings.filter(x=>x.starts_at&&new Date(x.starts_at).getTime()<Date.now()).length;
+      const card=x=>`<article class="card"><div class="kicker">${escape(x.status)} · ${escape(x.kind||'Listing')} · ${escape(x.city||'No city')}</div><h2 style="margin-top:8px">${escape(x.title)}</h2><p>${ageLabel(x)} · ${dateLabel(x)}</p><p>Source: ${escape(x.source_name||'Not provided')}</p>${/^https?:\/\//i.test(x.source_url||'')?`<p><a href="${escape(x.source_url)}" target="_blank" rel="noreferrer">Open source</a></p>`:''}${x.status==='pending'?`<div class="action-row"><button class="button" data-id="${escape(x.id)}" data-action="approve">Approve</button><button class="button ghost" data-id="${escape(x.id)}" data-action="reject">Reject</button></div>`:`<p class="settings-note">Approved ${x.reviewed_at?new Date(x.reviewed_at).toLocaleDateString():'listing'}</p>`}</article>`;
+      body.innerHTML=`<section class="stat-grid"><div class="stat"><b>${pending.length}</b><span>Pending approval</span></div><div class="stat"><b>${approved.length}</b><span>Approved listings</span></div><div class="stat"><b>${oldest}</b><span>Oldest pending (days)</span></div><div class="stat"><b>${past}</b><span>Past event dates</span></div></section>${listings.length?`<section class="settings-stack" style="margin-top:18px"><section class="card"><div class="kicker">Needs review</div><h2>Pending approval</h2>${pending.length?`<div class="players">${pending.map(card).join('')}</div>`:'<p class="settings-note">Nothing is waiting for approval.</p>'}</section><section class="card"><div class="kicker">Published</div><h2>Approved listings</h2>${approved.length?`<div class="players">${approved.map(card).join('')}</div>`:'<p class="settings-note">No listings have been approved yet.</p>'}</section></section>`:'<section class="card empty"><h2>No listings yet.</h2><p>Discovery is paused, and no listings have been approved.</p></section>'}`;
       body.querySelectorAll('[data-id]').forEach(button=>button.onclick=async()=>{
         button.disabled=true;
         const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:button.dataset.id,action:button.dataset.action})});
@@ -456,7 +462,7 @@
     }catch(err){s.textContent=err.message}
   };
 
-  const routes={game:mountGame,players:mountPlayers,settings:mountSettings,company:mountCompany,account:async()=>location.replace('/settings'),review:mountReview};
+  const routes={game:mountGame,players:mountPlayers,settings:mountSettings,company:mountCompany,account:async()=>location.replace('/settings'),review:async()=>location.replace('/listings'),listings:mountListings};
   (routes[page]||home)().then(()=>{
     setAccountMenu(profile);
     if(page==='game')enhanceGame().catch(()=>{});
