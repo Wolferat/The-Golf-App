@@ -4,24 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Listing · Golfolio</title>
-  <link rel="stylesheet" href="/player-pages.css">
+  <link rel="stylesheet" href="/explore-home.css">
+  <link rel="stylesheet" href="/listing-detail.css">
 </head>
-<body>
-  <header class="top">
-    <a class="brand" href="/" aria-label="Golfolio home">Golfolio</a>
+<body data-page="listing">
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="Golfolio home">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="16" r="2.4" fill="currentColor"/><path d="M9.7 14.5 17 4.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M17 4.8c1.7-.15 3.2.85 3.4 2.35.25 1.7-1.25 2.65-2.9 2.25l-2.1-1.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="brand-word">Golfolio</span>
+    </a>
+    <div class="header-spacer" aria-hidden="true"></div>
     <div class="top-actions">
-      <a class="button light" href="/">Home</a>
-      <a class="button light" id="listingAccount" href="/?login=1">Sign in</a>
+      <a class="button ghost-top" href="/">Explore</a>
+      <a class="button alt" id="listingAccount" href="/?login=1">Sign in</a>
     </div>
   </header>
-  <main class="shell">
-    <div id="listingDetail"><p class="settings-note">Loading listing...</p></div>
-  </main>
-  <nav class="mobile-nav" aria-label="App navigation">
-    <a href="/"><span>Explore</span></a>
-    <a href="/hub"><span>My Game</span></a>
-    <a href="/players"><span>Players</span></a>
-  </nav>
+  <main id="listingDetail"><p class="settings-note" style="max-width:1120px;margin:48px auto;padding:0 20px">Loading listing...</p></main>
+  <nav class="mobile-nav" aria-label="App navigation"></nav>
+  <script src="/app-nav.js"></script>
   <script src="/listing-page.js"></script>
 </body>
 </html>
