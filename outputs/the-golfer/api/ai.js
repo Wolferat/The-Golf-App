@@ -169,7 +169,8 @@ export default async function handler(req, res) {
 Return JSON only. Rules:
 - Stay inside the ${area.radiusMiles}-mile radius of ${area.label}. If the query is clearly outside that beta area, return no leads.
 - Include the street address for every lead when it can be verified from the source. Include latitude and longitude when available; use null when unknown.
-- Prefer official organizer, course, venue, or registration websites.
+- Only return a lead when source_url is an official organizer, course, venue, or official registration page. Do not use search-engine, directory, review-site, social-media, or news links as a listing source.
+- official_website must be the actual official business or organizer site when one exists. registration_url may be a separate official registration page. source_url must use the same domain as official_website or registration_url.
 - Exclude professional tour events unless the official organizer page is used and the listing only links out.
 - Never invent titles, addresses, prices, phones, websites, dates, coordinates, or quotes. Use null when unknown.
 - Every factual value must include source_url and source_name.
