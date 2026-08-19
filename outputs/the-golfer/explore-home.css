@@ -109,12 +109,14 @@ button, input { font: inherit; }
 .kind-filter:focus-visible,
 .listing-card:focus-visible,
 .browse-action:focus-visible,
-.hero-location-signup:focus-visible {
+.header-signin:focus-visible {
   outline: 3px solid rgba(231, 181, 66, 0.45);
   outline-offset: 2px;
 }
 
 .button.alt { background: var(--lime); color: var(--ink); }
+
+.signup-label-mobile { display: none; }
 
 .button.ghost-top {
   min-height: 42px;
@@ -214,24 +216,7 @@ button, input { font: inherit; }
   transform: translateY(-1px);
 }
 
-.hero-location-signup {
-  min-height: 42px;
-  padding: 9px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 999px;
-  background: transparent;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.hero-location-signup:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-#nearMeButton[hidden],
-#heroLocationSignup[hidden] {
+#nearMeButton[hidden] {
   display: none !important;
 }
 
@@ -843,11 +828,21 @@ body.signed-out #locationBar {
 }
 
 @media (max-width: 1024px) {
-  body {
+  html.signed-in body,
+  body.signed-in {
     padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
   }
 
+  html.signed-out body,
+  body.signed-out {
+    padding-bottom: 0;
+  }
+
   .site-footer {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.signed-in .site-footer {
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
 
@@ -863,7 +858,7 @@ body.signed-out #locationBar {
     right: 12px;
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     left: 12px;
-    display: grid;
+    display: none;
     grid-template-columns: repeat(3, 1fr);
     gap: 3px;
     padding: 6px;
@@ -872,6 +867,15 @@ body.signed-out #locationBar {
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 13px 35px rgba(7, 28, 18, 0.18);
     backdrop-filter: blur(14px);
+  }
+
+  html.signed-in .mobile-nav,
+  body.signed-in .mobile-nav {
+    display: grid;
+  }
+
+  body.signed-out.auth-modal-open .mobile-nav {
+    display: none !important;
   }
 
   .mobile-nav button,
@@ -913,9 +917,68 @@ body.signed-out #locationBar {
 }
 
 @media (max-width: 760px) {
-  .explore-open { padding: 18px 0 28px; }
+  .app-header {
+    gap: 10px;
+    min-height: 58px;
+    padding-inline: max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-right));
+  }
 
-  .discovery-board { margin-top: -14px; padding-bottom: 24px; }
+  .brand {
+    min-width: 0;
+    font-size: clamp(20px, 5.4vw, 26px);
+  }
+
+  .brand-word {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .header-spacer {
+    flex: 0 1 8px;
+    min-width: 0;
+  }
+
+  .top-actions {
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .top-actions .button,
+  .header-signin {
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .signup-label-desktop { display: none; }
+
+  .signup-label-mobile { display: inline; }
+
+  .explore-open { padding: 12px 0 14px; }
+
+  .explore-main { padding: 0 0 12px; }
+
+  .explore-main h1 {
+    font-size: clamp(28px, 8.2vw, 36px);
+    line-height: 1.06;
+  }
+
+  .explore-main .lead {
+    margin-top: 10px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .hero-actions { margin-top: 14px; }
+
+  .area-panel {
+    padding: 14px 16px;
+    max-width: none;
+  }
+
+  .discovery-board { margin-top: -8px; padding-bottom: 20px; }
 
   .discovery-panel { padding: 20px 16px 22px; border-radius: 22px; }
 
@@ -931,6 +994,57 @@ body.signed-out #locationBar {
   .browse-action { width: 100%; }
 
   .footer-inner { flex-direction: column; align-items: flex-start; }
+
+  .modal {
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding:
+      max(12px, env(safe-area-inset-top))
+      max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal.open { display: flex; }
+
+  .dialog {
+    width: 100%;
+    max-width: none;
+    margin: 0 auto;
+    padding: 24px 18px 28px;
+    max-height: none;
+  }
+
+  .dialog h2 {
+    font-size: clamp(26px, 7vw, 32px);
+    padding-right: 42px;
+  }
+
+  .form input,
+  .form .button,
+  .form button.button[type="submit"] {
+    width: 100%;
+  }
+
+  .password-row {
+    width: 100%;
+  }
+
+  .password-row input {
+    min-width: 0;
+  }
+
+  .show-password {
+    flex-shrink: 0;
+  }
+
+  .text-button {
+    width: 100%;
+    text-align: left;
+  }
 }
 
 @media (max-width: 390px) {
@@ -938,11 +1052,14 @@ body.signed-out #locationBar {
 
   .mosaic-tile { min-height: 84px; padding: 10px 6px; }
 
-  .header-actions .button,
   .top-actions .button {
-    min-height: 40px;
-    padding: 8px 12px;
-    font-size: 13px;
+    min-height: 38px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+
+  #signupButton .signup-label-mobile {
+    font-size: 12px;
   }
 }
 

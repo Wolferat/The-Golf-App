@@ -6,8 +6,18 @@
   <meta name="description" content="Golfolio helps golfers around Sherman, Texas find verified courses, tournaments, training, simulators, charity, and corporate events.">
   <title>Golfolio · Golf around Sherman</title>
   <link rel="stylesheet" href="/explore-home.css">
+  <script>
+    (function () {
+      var mode = 'signed-out';
+      try {
+        if (JSON.parse(localStorage.getItem('golfolio_session') || 'null')?.access_token) mode = 'signed-in';
+      } catch (e) {}
+      document.documentElement.className = mode;
+    })();
+  </script>
 </head>
-<body data-page="home">
+<body data-page="home" class="signed-out">
+  <script>document.body.className = document.documentElement.className;</script>
   <header class="app-header">
     <div class="brand" aria-label="Golfolio">
       <svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="16" r="2.4" fill="currentColor"/><path d="M9.7 14.5 17 4.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M17 4.8c1.7-.15 3.2.85 3.4 2.35.25 1.7-1.25 2.65-2.9 2.25l-2.1-1.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -17,8 +27,8 @@
     <div class="header-spacer" aria-hidden="true"></div>
     <div class="top-actions">
       <small id="memberState" class="header-tagline">Verified golf near Sherman.</small>
-      <button class="button ghost-top" id="accountButton" type="button">Sign in</button>
-      <button class="button alt" id="signupButton" type="button">Create account</button>
+      <button class="button ghost-top header-signin" id="accountButton" type="button">Sign in</button>
+      <button class="button alt" id="signupButton" type="button" aria-label="Create account"><span class="signup-label-desktop">Create account</span><span class="signup-label-mobile" aria-hidden="true">Join free</span></button>
       <div id="accountMenu" class="account-menu hidden"></div>
     </div>
   </header>
@@ -32,7 +42,6 @@
           <div class="hero-actions">
             <button type="button" class="browse-action" id="browseAction">See what Golfolio helps you find</button>
             <button type="button" class="button gold near-me-button" id="nearMeButton" hidden>Near me</button>
-            <button type="button" class="button ghost-top hero-location-signup" id="heroLocationSignup">Create an account to use location</button>
           </div>
         </div>
         <aside class="area-panel" aria-label="Sherman service area">
@@ -106,7 +115,13 @@
   <div class="modal" id="signupModal"><div class="dialog"><button class="close" aria-label="Close">x</button><h2>Join Golfolio</h2><p>It's free. Create your player name, then verify your email to finish your account.</p><form class="form" id="signupForm"><label for="username">Player username</label><input id="username" name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_\-]+" placeholder="Example: Spideypar" required><label for="email">Email address</label><input id="email" name="email" type="email" placeholder="you@example.com" required><label for="password">Password</label><div class="password-row"><input id="password" name="password" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" required><button class="show-password" type="button" data-password-toggle="password">Show</button></div><label for="confirmPassword">Confirm password</label><div class="password-row"><input id="confirmPassword" name="confirmPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Type it again" required><button class="show-password" type="button" data-password-toggle="confirmPassword">Show</button></div><label class="check"><input id="usernameNotice" type="checkbox" required><span>I understand this username will be visible to other players. My real name and email will not be public.</span></label><button class="button" type="submit">Create free account</button><p class="status" id="signupStatus"></p></form></div></div>
   <script>
     const $=s=>document.querySelector(s);let config=null,coords=null;
-    const openModal=()=>$('#signupModal').classList.add('open'),closeModal=()=>$('#signupModal').classList.remove('open');
+    window.golfolioSyncAuthModal=function(){
+      const signedOut=document.body.classList.contains('signed-out');
+      const open=!!document.querySelector('#loginModal.open,#signupModal.open,#resetModal.open');
+      document.body.classList.toggle('auth-modal-open',signedOut&&open);
+    };
+    const openModal=()=>{$('#signupModal').classList.add('open');window.golfolioSyncAuthModal()};
+    const closeModal=()=>{$('#signupModal').classList.remove('open');window.golfolioSyncAuthModal()};
     $('#signupButton').onclick=openModal;$('.close').onclick=closeModal;$('#signupModal').onclick=e=>{if(e.target.id==='signupModal')closeModal()};document.querySelectorAll('[data-password-toggle]').forEach(button=>button.onclick=()=>{const input=document.getElementById(button.dataset.passwordToggle),hidden=input.type==='password';input.type=hidden?'text':'password';button.textContent=hidden?'Hide':'Show'});
     const miles=(a,b)=>{const r=3958.8,d=x=>x*Math.PI/180,lat=d(b.lat-a.lat),lng=d(b.lng-a.lng),h=Math.sin(lat/2)**2+Math.cos(d(a.lat))*Math.cos(d(b.lat))*Math.sin(lng/2)**2;return 2*r*Math.asin(Math.sqrt(h))};
     const escapeHtml=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -122,10 +137,12 @@
     function setExploreMode(signedIn){
       document.body.classList.toggle('signed-in',!!signedIn);
       document.body.classList.toggle('signed-out',!signedIn);
-      const nearMe=$('#nearMeButton'),locSignup=$('#heroLocationSignup'),locBar=$('#locationBar');
+      document.documentElement.classList.toggle('signed-in',!!signedIn);
+      document.documentElement.classList.toggle('signed-out',!signedIn);
+      const nearMe=$('#nearMeButton'),locBar=$('#locationBar');
       if(nearMe)nearMe.hidden=!signedIn;
-      if(locSignup)locSignup.hidden=!!signedIn;
       if(locBar)locBar.classList.toggle('hidden',!signedIn);
+      window.golfolioSyncAuthModal?.();
     }
     function renderSignedOutPreview(){
       setExploreMode(false);
@@ -183,7 +200,6 @@
     window.golfolioLoadBoardPrefs=loadBoardPrefs;
     $('#locationButton').onclick=()=>useLocation(false);$('#nearMeButton').onclick=()=>useLocation(false);
     $('#browseAction').onclick=()=>{$('#discoveryBoard')?.scrollIntoView({behavior:'smooth',block:'start'})};
-    $('#heroLocationSignup').onclick=openModal;
     document.querySelectorAll('#kindFilters [data-kind]').forEach(button=>button.onclick=()=>{kindFilter=button.dataset.kind;document.querySelectorAll('#kindFilters [data-kind]').forEach(x=>x.classList.toggle('active',x===button));loadListings()});
     $('#signupForm').onsubmit=async e=>{e.preventDefault();const status=$('#signupStatus'),username=$('#username').value.trim(),email=$('#email').value.trim(),password=$('#password').value,confirmation=$('#confirmPassword').value;if(password!==confirmation){status.textContent='Passwords do not match.';return}status.textContent='Creating your account...';try{const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password,username})}),data=await r.json();if(!r.ok)throw Error(data.msg||data.message||'Unable to create account.');status.textContent='Check your email to verify your Golfolio account.';$('#signupForm').reset()}catch(err){status.textContent=err.message}};
     loadListings();
@@ -205,9 +221,9 @@
   <nav class="mobile-nav" id="mobileNav" aria-label="App navigation"></nav>
   <script src="/app-nav.js"></script>
   <script>
-    (()=>{const $=s=>document.querySelector(s),getConfig=async()=>{if(window.golfolioConfig)return window.golfolioConfig;const r=await fetch('/api/config');return window.golfolioConfig=await r.json()},open=id=>$(id).classList.add('open'),close=id=>$(id).classList.remove('open');let session=null,profile=null;
+    (()=>{const $=s=>document.querySelector(s),getConfig=async()=>{if(window.golfolioConfig)return window.golfolioConfig;const r=await fetch('/api/config');return window.golfolioConfig=await r.json()},syncAuthModal=()=>window.golfolioSyncAuthModal?.(),open=id=>{$(id).classList.add('open');syncAuthModal()},close=id=>{$(id).classList.remove('open');syncAuthModal()};let session=null,profile=null;
       const inject=document.createElement('style');inject.textContent='.top-actions{position:relative}.ghost-top{background:transparent!important;border:1px solid #d7e7dc;color:#fff!important}.account-menu{position:absolute;right:0;top:52px;width:210px;padding:8px;background:#fff;border:1px solid #dfe9e0;border-radius:12px;box-shadow:0 12px 28px #071c1233;z-index:20}.account-menu button{display:block;width:100%;padding:10px;border:0;background:transparent;color:#143326;text-align:left;font-weight:800;cursor:pointer;border-radius:8px}.account-menu button:hover{background:#e6f6e9}.account-menu .menu-note{display:block;padding:5px 10px 9px;color:#65766c;font-size:12px}.avatar-picker{display:flex;gap:8px;flex-wrap:wrap}.avatar-choice{width:42px;height:42px;border-radius:50%;border:2px solid #dfe9e0;background:#e6f6e9;color:#198754;font-weight:800;cursor:pointer}.avatar-choice.selected{border-color:#198754;background:#198754;color:#fff}.profile-avatar{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:#e6f6e9;color:#198754;font-weight:900;font-size:22px}.password-row{display:flex;gap:7px}.password-row input{flex:1}.show-password{min-width:62px;border:1px solid #cfdcd2;border-radius:10px;background:#f6faf6;color:#17683e;font-weight:800;cursor:pointer}.text-button{border:0;background:none;color:#198754;text-align:left;padding:0;font-weight:800;cursor:pointer}.profile-row{padding:12px 0;border-bottom:1px solid #dfe9e0}.profile-row b{display:block}.admin-dialog{max-width:700px}.review{border:1px solid #dfe9e0;border-radius:12px;padding:14px;margin:12px 0}.review h3{margin:0 0 5px;font:20px Georgia,serif}.review p{margin:4px 0;font-size:14px}.review-actions{display:flex;gap:8px;margin-top:10px}.review-actions .reject{background:#8a3428}';document.head.append(inject);
-      document.querySelectorAll('.modal .close').forEach(x=>x.onclick=()=>x.closest('.modal').classList.remove('open'));
+      document.querySelectorAll('.modal .close').forEach(x=>x.onclick=()=>{x.closest('.modal').classList.remove('open');syncAuthModal()});
       document.querySelectorAll('[data-password-toggle]').forEach(button=>button.onclick=()=>{const input=document.getElementById(button.dataset.passwordToggle),hidden=input.type==='password';input.type=hidden?'text':'password';button.textContent=hidden?'Hide':'Show'});
       // Wire Sign in immediately so the login form opens even if session restore fails.
       $('#accountButton').onclick=()=>open('#loginModal');
