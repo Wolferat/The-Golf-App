@@ -18,6 +18,11 @@ import {
 } from '../lib/listings.js';
 import { isPrivateOrLocalIp, parsePublicHttpsUrl } from '../lib/safe-fetch.js';
 import { pageReferencesImage } from '../lib/page-images.js';
+import listingsHandler from '../api/listings.js';
+import listingHandler from '../api/listing.js';
+import reviewsHandler from '../api/reviews.js';
+import venuePhotosHandler from '../api/venue-photos.js';
+import playerHandler from '../api/player.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -339,6 +344,86 @@ assert(!home.includes('x.photos'), 'Dashboard cards must not read listings.photo
 assert(!home.includes('Waiting for approval'), 'Signed-out preview must not use coming-soon copy');
 assert(!home.includes('coming soon') && !home.includes('Coming soon'), 'Signed-out preview must not describe future features');
 
+const gateSqlPath = join(root, 'supabase/signed-in-data-gate-migration.sql');
+const gateSql = readFileSync(gateSqlPath, 'utf8');
+assert(gateSql.includes('alter table public.listings enable row level security'), 'Listings RLS must stay enabled');
+assert(gateSql.includes('alter table public.listing_reviews enable row level security'), 'Review RLS must stay enabled');
+assert(gateSql.includes('alter table public.venue_photos enable row level security'), 'Venue-photo RLS must stay enabled');
+assert(gateSql.includes('alter table public.rounds enable row level security'), 'Rounds RLS must stay enabled');
+assert(gateSql.includes('drop policy if exists "public approved listings"'), 'Anonymous listing read policy must be removed');
+assert(gateSql.includes('drop policy if exists "public read approved listing reviews"'), 'Anonymous review read policy must be removed');
+assert(gateSql.includes('drop policy if exists "public read approved venue photos"'), 'Anonymous venue-photo read policy must be removed');
+assert(gateSql.includes('drop policy if exists "public rounds are readable"'), 'Anonymous public-round policy must be removed');
+assert(gateSql.includes('authenticated read approved listings'), 'Approved listings must have an authenticated-only policy');
+assert(gateSql.includes('authenticated read approved listing reviews'), 'Approved reviews must have an authenticated-only policy');
+assert(gateSql.includes('authenticated read approved venue photos'), 'Approved venue photos must have an authenticated-only policy');
+assert(gateSql.includes('authenticated read public rounds'), 'Public rounds must have an authenticated-only policy');
+assert((gateSql.match(/auth\.role\(\) = 'authenticated'/g) || []).length >= 4, 'Public-facing select policies must require auth.role() = authenticated');
+assert(gateSql.includes('revoke all on table public.listings from anon'), 'Anon must lose listings grants');
+assert(gateSql.includes('revoke all on table public.listing_reviews from anon'), 'Anon must lose review grants');
+assert(gateSql.includes('revoke all on table public.venue_photos from anon'), 'Anon must lose venue-photo grants');
+assert(gateSql.includes('revoke all on table public.rounds from anon'), 'Anon must lose rounds grants');
+assert(gateSql.includes('players read own listing reviews'), 'Players must still read their own reviews');
+assert(gateSql.includes('players manage own rounds'), 'Players must still manage their own rounds');
+assert(gateSql.includes('grant all on table public.listings to service_role'), 'Service role must keep listings access');
+assert(gateSql.includes('grant all on table public.listing_reviews to service_role'), 'Service role must keep review access');
+assert(gateSql.includes('grant all on table public.venue_photos to service_role'), 'Service role must keep venue-photo access');
+assert(gateSql.includes('grant all on table public.rounds to service_role'), 'Service role must keep rounds access');
+assert(listingsApi.includes('auth.token'), 'Listings API must use the verified user access token');
+assert(listingApi.includes('auth.token'), 'Listing detail API must use the verified user access token');
+assert(listingsApi.includes('apikey: anonKey') || listingsApi.includes('apikey: key'), 'Listings API must still send the public anon key as apikey');
+assert(!listingsApi.includes('Authorization: `Bearer ${key}`'), 'Listings API must not use the anon key as a user JWT');
+assert(!listingApi.includes('Authorization: `Bearer ${key}`'), 'Listing detail API must not use the anon key as a user JWT');
+assert(listingsApi.includes('requireUser') && listingApi.includes('requireUser'), 'Signed-in APIs still expose approved listings after requireUser');
+assert(reviewsApi.includes('requireUser') && venueApi.includes('requireUser') && playerApi.includes('authenticatedUser'), 'Reviews, venue photos, and player data remain available through protected APIs');
+
+function mockReq(query = {}) {
+  return { method: 'GET', query, headers: {}, body: {} };
+}
+function mockRes() {
+  const res = {
+    statusCode: 200,
+    body: null,
+    headers: {},
+    setHeader(key, value) { this.headers[key] = value; return this; },
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; }
+  };
+  return res;
+}
+async function assertHandler401(handler, query, message) {
+  const res = mockRes();
+  await handler(mockReq(query), res);
+  assert(res.statusCode === 401, message);
+}
+
+await assertHandler401(listingsHandler, {}, '/api/listings must return 401 without a session');
+await assertHandler401(listingHandler, { id: '00000000-0000-0000-0000-000000000001' }, '/api/listing must return 401 without a session');
+await assertHandler401(reviewsHandler, { listing_id: '00000000-0000-0000-0000-000000000001' }, '/api/reviews must return 401 without a session');
+await assertHandler401(venuePhotosHandler, { listing_id: '00000000-0000-0000-0000-000000000001' }, '/api/venue-photos must return 401 without a session');
+await assertHandler401(playerHandler, {}, '/api/player must return 401 without a session');
+
+const usableRow = (row) => row && (row.id || row.title || row.body || row.image_url || row.course_name);
+async function assertAnonRestBlocked(path, message) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!url || !key) return 'skipped';
+  const response = await fetch(`${url}/rest/v1/${path}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` }
+  });
+  const body = await response.json().catch(() => null);
+  const leaked = Array.isArray(body) && body.some(usableRow);
+  assert(!leaked && (response.status >= 400 || (Array.isArray(body) && body.length === 0)), message);
+  return 'probed';
+}
+
+const restProbe = await Promise.all([
+  assertAnonRestBlocked('listings?status=eq.approved&select=id,title&limit=1', 'Anon REST must not read approved listings'),
+  assertAnonRestBlocked('listing_reviews?status=eq.approved&select=id,body&limit=1', 'Anon REST must not read approved listing reviews'),
+  assertAnonRestBlocked('venue_photos?status=eq.approved&select=id,image_url&limit=1', 'Anon REST must not read approved venue photos'),
+  assertAnonRestBlocked('rounds?visibility=eq.public&select=id,course_name&limit=1', 'Anon REST must not read public rounds')
+]);
+
 if (failures.length) {
   console.error('Venue community checks failed:\n- ' + failures.join('\n- '));
   process.exit(1);
@@ -348,3 +433,7 @@ console.log('- Players cannot moderate (canModerateCommunity=false for non-admin
 console.log('- Event listings cannot be reviewed.');
 console.log('- Official venue photos may use a referenced CDN, but not an unreferenced one.');
 console.log('- Listing, review, venue-photo, and player APIs require a signed-in session.');
+console.log('- Anonymous public-read RLS policies are replaced by authenticated-only policies.');
+console.log(restProbe.includes('probed')
+  ? '- Live anon-key REST probes returned no usable listing/review/photo/round rows.'
+  : '- Live anon-key REST probes skipped (SUPABASE_URL / SUPABASE_ANON_KEY not set in this environment).');

@@ -79,7 +79,6 @@ export default async function handler(req, res) {
         );
         return json(res, 200, { photos: (await attachListings(photos || [])).map(publicPhoto) });
       }
-      if (!listingId) return json(res, 400, { error: 'Listing id is required.' });
       if (pending) {
         const auth = await requireAdmin(req);
         if (auth.error) return json(res, auth.error.status, auth.error.body);
@@ -87,6 +86,7 @@ export default async function handler(req, res) {
         const auth = await requireUser(req);
         if (auth.error) return json(res, auth.error.status, { ...auth.error.body, gate: true });
       }
+      if (!listingId) return json(res, 400, { error: 'Listing id is required.' });
       const listing = await loadListing(listingId);
       if (!listing || listing.status !== 'approved') {
         return json(res, 404, { error: 'That listing is not available.' });

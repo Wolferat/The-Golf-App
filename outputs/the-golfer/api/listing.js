@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return json(res, 404, { error: 'That listing is not available.' });
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_ANON_KEY;
   if (!url || !key) return json(res, 404, { error: 'That listing is not available.' });
-  const headers = { apikey: key, Authorization: `Bearer ${key}` };
+  const headers = { apikey: key, Authorization: `Bearer ${auth.token}` };
   let response = await fetch(`${url}/rest/v1/listings?id=eq.${encodeURIComponent(id)}&status=eq.approved&select=${FULL_SELECT}`, { headers });
   if (!response.ok) {
     response = await fetch(`${url}/rest/v1/listings?id=eq.${encodeURIComponent(id)}&status=eq.approved&select=${BASIC_SELECT}`, { headers });

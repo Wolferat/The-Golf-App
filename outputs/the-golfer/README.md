@@ -31,6 +31,7 @@ SQL for this:
 
 6. `supabase/sherman-beta-area-migration.sql` (additive; does not delete listings)
 7. `supabase/venue-community-migration.sql` (player reviews, official venue-photo URLs, `rounds.listing_id`)
+8. `supabase/signed-in-data-gate-migration.sql` (RLS: approved listings, reviews, venue photos, and public rounds require a signed-in session)
 
 Run **only** the SQL files in the Supabase SQL Editor. Do not run them from the app, a cron, or this agent.
 
