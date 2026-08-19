@@ -73,8 +73,8 @@ export function filterLeadsInBetaArea(leads, area = DEFAULT_BETA_AREA) {
   const kept = [];
   const omitted = [];
   for (const lead of Array.isArray(leads) ? leads : []) {
-    if (!lead?.title || !isHttpUrl(lead.source_url || lead.official_website || lead.registration_url)) {
-      omitted.push({ title: lead?.title || null, reason: 'incomplete' });
+    if (!lead?.title || !hasOfficialListingSource(lead)) {
+      omitted.push({ title: lead?.title || null, reason: 'missing_official_source' });
       continue;
     }
     const hasCoordinates =
@@ -105,6 +105,24 @@ export function isHttpUrl(value) {
   } catch {
     return false;
   }
+}
+
+function normalizedHost(value) {
+  try {
+    return new URL(String(value || '')).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+// A listing can be backed by its official website or official registration page.
+// Search-engine, directory, and social-media links are not public listing sources.
+export function hasOfficialListingSource(lead = {}) {
+  const sourceHost = normalizedHost(lead.source_url);
+  if (!sourceHost) return false;
+  return [lead.official_website, lead.registration_url]
+    .filter(isHttpUrl)
+    .some((url) => normalizedHost(url) === sourceHost);
 }
 
 export function cleanText(value, max = 500) {
@@ -196,9 +214,7 @@ export function publicListing(row) {
     address: row.address || null,
     phone: row.phone || null,
     official_website: row.official_website || null,
-    registration_url: row.registration_url || row.source_url || null,
-    source_url: row.source_url,
-    source_name: row.source_name || null,
+    registration_url: row.registration_url || null,
     price_note: row.price_note || null,
     starts_at: row.starts_at || null,
     ends_at: row.ends_at || null,
@@ -262,7 +278,7 @@ export function leadToListing(lead, { discoveredBy = 'ai' } = {}) {
   const kind = KINDS.includes(lead.kind) ? lead.kind : null;
   const title = cleanText(lead.title, 200);
   const source_url = lead.source_url || lead.official_website || lead.registration_url;
-  if (!title || !kind || !cleanText(lead.city, 120) || !isHttpUrl(source_url)) return null;
+  if (!title || !kind || !cleanText(lead.city, 120) || !hasOfficialListingSource(lead)) return null;
   return {
     title,
     kind,
