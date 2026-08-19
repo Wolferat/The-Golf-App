@@ -23,9 +23,9 @@ Run these in the SQL Editor if they have not already been applied:
 
 Public pages show only `approved` listings. AI leads and enrichments stay private until an admin approves or applies them.
 
-## Sherman beta area
+## Sherman golf area
 
-Current beta search area is a **30-mile radius centered on Sherman, Texas** (`33.6357`, `-96.6089`). Admins can change the label, coordinates, and radius in Company Settings.
+Current Sherman service area is a **30-mile radius centered on Sherman, Texas** (`33.6357`, `-96.6089`). Admins can change the label, coordinates, and radius in Company Settings.
 
 SQL for this:
 

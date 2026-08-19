@@ -93,7 +93,7 @@ export default async function handler(req, res) {
         parseCoordinate(lead?.longitude, { min: -180, max: 180 }) != null;
       if (hasCoordinates && !withinBetaArea(lead?.latitude, lead?.longitude, area)) {
         return json(res, 400, {
-          error: `That lead sits outside the ${area.radiusMiles}-mile ${area.label} beta area.`,
+          error: `That lead sits outside the ${area.radiusMiles}-mile ${area.label} service area.`,
           area
         });
       }

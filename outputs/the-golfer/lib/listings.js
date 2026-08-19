@@ -56,7 +56,7 @@ export function areaSearchPrompt(area = DEFAULT_BETA_AREA) {
     beta_area_longitude: area.longitude,
     beta_area_radius_miles: area.radiusMiles
   });
-  return `Golfolio beta listing area: a ${next.radiusMiles}-mile straight-line radius centered on ${next.label} (latitude ${next.latitude}, longitude ${next.longitude}), Texas, United States`;
+  return `Golfolio Sherman service area: a ${next.radiusMiles}-mile straight-line radius centered on ${next.label} (latitude ${next.latitude}, longitude ${next.longitude}), Texas, United States`;
 }
 
 export function withinBetaArea(lat, lng, area = DEFAULT_BETA_AREA) {

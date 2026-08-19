@@ -167,7 +167,7 @@ export default async function handler(req, res) {
         input: `Search for public golf listings ${areaText}. Admin search: ${query}
 
 Return JSON only. Rules:
-- Stay inside the ${area.radiusMiles}-mile radius of ${area.label}. If the query is clearly outside that beta area, return no leads.
+- Stay inside the ${area.radiusMiles}-mile radius of ${area.label}. If the query is clearly outside that service area, return no leads.
 - Include the street address for every lead when it can be verified from the source. Include latitude and longitude when available; use null when unknown.
 - Only return a lead when source_url is an official organizer, course, venue, or official registration page. Do not use search-engine, directory, review-site, social-media, or news links as a listing source.
 - official_website must be the actual official business or organizer site when one exists. registration_url may be a separate official registration page. source_url must use the same domain as official_website or registration_url.

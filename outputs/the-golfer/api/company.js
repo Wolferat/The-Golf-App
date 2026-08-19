@@ -32,9 +32,9 @@ const SELECT_FIELDS = [
 const DEFAULTS = {
   company_name: 'Golfolio',
   support_email: null,
-  launch_boundary_name: 'Sherman beta area',
+  launch_boundary_name: 'Sherman area',
   launch_description:
-    'Temporary Golfolio beta area: a 30-mile radius centered on Sherman, Texas. Admins can change the center and radius in Company Settings as beta users travel.',
+    'Golf around Sherman: a 30-mile service area centered on Sherman, Texas. Admins can change the center and radius in Company Settings.',
   location_radius_default: 15,
   launch_enabled: true,
   discovery_enabled: false,
@@ -82,10 +82,10 @@ function normalize(row = {}) {
   return {
     company_name: row.company_name || DEFAULTS.company_name,
     support_email: row.support_email || null,
-    launch_boundary_name: row.launch_boundary_name || 'Sherman beta area',
+    launch_boundary_name: row.launch_boundary_name || 'Sherman area',
     launch_description:
       row.launch_description ||
-      `Temporary Golfolio beta area: a ${area.radiusMiles}-mile radius centered on ${area.label}.`,
+      `Golf around Sherman: a ${area.radiusMiles}-mile service area centered on ${area.label}.`,
     location_radius_default: Number(row.location_radius_default ?? DEFAULTS.location_radius_default),
     launch_enabled: row.launch_enabled != null ? Boolean(row.launch_enabled) : DEFAULTS.launch_enabled,
     discovery_enabled: row.discovery_enabled != null ? Boolean(row.discovery_enabled) : DEFAULTS.discovery_enabled,
@@ -115,7 +115,7 @@ function normalize(row = {}) {
     beta_area_radius_miles: area.radiusMiles,
     updated_at: row.updated_at || null,
     boundary_note:
-      `Temporary beta listing area: a ${area.radiusMiles}-mile radius centered on ${area.label} (${area.latitude}, ${area.longitude}). Change these values in Company Settings as beta users travel.`
+      `Sherman service area: a ${area.radiusMiles}-mile radius centered on ${area.label} (${area.latitude}, ${area.longitude}). Change these values in Company Settings when the active area moves.`
   };
 }
 
@@ -213,23 +213,23 @@ function pickUpdates(body = {}) {
   }
   if (body.beta_area_label !== undefined) {
     const beta_area_label = cleanText(body.beta_area_label, { required: true, max: 120 });
-    if (!beta_area_label) throw new Error('Beta listing area label is required.');
+    if (!beta_area_label) throw new Error('Service area label is required.');
     next.beta_area_label = beta_area_label;
   }
   if (body.beta_area_latitude !== undefined) {
     const latitude = parseCoordinate(body.beta_area_latitude, { min: -90, max: 90 });
-    if (latitude == null) throw new Error('Beta area latitude must be a number between -90 and 90.');
+    if (latitude == null) throw new Error('Service area latitude must be a number between -90 and 90.');
     next.beta_area_latitude = latitude;
   }
   if (body.beta_area_longitude !== undefined) {
     const longitude = parseCoordinate(body.beta_area_longitude, { min: -180, max: 180 });
-    if (longitude == null) throw new Error('Beta area longitude must be a number between -180 and 180.');
+    if (longitude == null) throw new Error('Service area longitude must be a number between -180 and 180.');
     next.beta_area_longitude = longitude;
   }
   if (body.beta_area_radius_miles !== undefined) {
     const miles = Number(body.beta_area_radius_miles);
     if (!Number.isInteger(miles) || miles < 1 || miles > 250) {
-      throw new Error('Beta area radius must be a whole number of miles between 1 and 250.');
+      throw new Error('Service area radius must be a whole number of miles between 1 and 250.');
     }
     next.beta_area_radius_miles = miles;
   }

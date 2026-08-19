@@ -114,7 +114,9 @@
       ? `${rating.average} average · ${rating.count} review${rating.count===1?'':'s'}`
       : 'No public reviews yet';
 
-    root.innerHTML=`<div class="page-head"><div><div class="kicker">${escape(listing.kind||'Listing')}</div><h1>${escape(listing.title)}</h1><p>${escape(listing.venue_name||listing.city||'Sherman area')}</p><p class="rating-line">${rating.count?stars(Math.round(rating.average)):''} ${escape(ratingLabel)}</p></div></div>
+    const verifiedBadge=`<span class="verified-badge detail-verified" aria-label="Verified listing"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#178357"/><path d="M7 12.5l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span class="verified-text">Verified</span></span>`;
+
+    root.innerHTML=`<div class="page-head"><div><div class="kicker">${escape(listing.kind||'Listing')}</div><h1>${escape(listing.title)}</h1>${verifiedBadge}<p>${escape(listing.venue_name||listing.city||'Sherman area')}</p><p class="rating-line">${rating.count?stars(Math.round(rating.average)):''} ${escape(ratingLabel)}</p></div></div>
       <section class="card">
         ${listing.description?`<p>${escape(listing.description)}</p>`:'<p class="settings-note">A public description has not been verified yet.</p>'}
         <div class="detail-grid">

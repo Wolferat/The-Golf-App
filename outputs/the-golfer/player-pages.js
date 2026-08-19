@@ -64,7 +64,7 @@
   const cleanNav=document.querySelector('.mobile-nav');
   if(cleanNav){
     const active=page==='game'?'game':page==='players'?'players':'';
-    cleanNav.innerHTML=[['home','Home','/'],['game','My game','/hub'],['players','Players','/players']].map(([key,label,href])=>`<a href="${href}" class="${active===key?'active':''}">${navIcons[key]}<span class="nav-label">${label}</span></a>`).join('');
+    cleanNav.innerHTML=[['home','Explore','/'],['game','My Game','/hub'],['players','Players','/players']].map(([key,label,href])=>`<a href="${href}" class="${active===key?'active':''}">${navIcons[key]}<span class="nav-label">${label}</span></a>`).join('');
   }
   const cleanNavStyle=document.createElement('style');
   cleanNavStyle.textContent='.mobile-nav .nav-icon{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.mobile-nav .nav-label{font:700 11px/1.1 DM Sans,sans-serif!important}';
@@ -175,7 +175,7 @@
           <h2>What you want to hear about</h2>
           <p class="settings-note">These choices are saved now for Golfolio’s future notification system. Nothing is sent yet.</p>
           <form id="notifyForm">
-            ${toggleRow('notifyNearby','Verified events near me','Approved tournaments, courses, and training near the Sherman beta area.',s.notify_nearby_events)}
+            ${toggleRow('notifyNearby','Verified events near me','Approved tournaments, courses, and training in the Sherman golf area.',s.notify_nearby_events)}
             ${toggleRow('notifyFollowed','Saved / followed golf activity','Updates related to players and golf you choose to follow.',s.notify_followed_activity)}
             ${toggleRow('notifyProduct','Golfolio product updates','Occasional product notes about Golfolio itself.',s.notify_product_updates)}
             <div class="action-row"><button class="button" type="submit">Save notification choices</button></div>
@@ -315,7 +315,7 @@
     const me=await api('?view=me');
     profile=me.profile||{};
     if(profile.role!=='admin'){
-      $('#pageBody').innerHTML=`<section class="card"><div class="kicker">Admin only</div><h2>This page is for Golfolio admins</h2><p class="settings-note">Company settings control the beta listing area, moderation, and operations. Your player Settings are still available.</p><div class="action-row"><a class="button" href="/settings">Open Settings</a><a class="button ghost" href="/">Back to Home</a></div></section>`;
+      $('#pageBody').innerHTML=`<section class="card"><div class="kicker">Admin only</div><h2>This page is for Golfolio admins</h2><p class="settings-note">Company settings control the Sherman service area, moderation, and operations. Your player Settings are still available.</p><div class="action-row"><a class="button" href="/settings">Open Settings</a><a class="button ghost" href="/">Back to Home</a></div></section>`;
       return;
     }
     const data=await companyApi();
@@ -324,9 +324,9 @@
     $('#pageBody').innerHTML=`
       <div class="settings-stack">
         <section class="card">
-          <div class="kicker">Beta listing area</div>
-          <h2>Sherman beta radius</h2>
-          <p class="settings-note">${escape(s.boundary_note||'Temporary 30-mile radius centered on Sherman, Texas. Change these values as beta users travel.')}</p>
+          <div class="kicker">Sherman service area</div>
+          <h2>Sherman area radius</h2>
+          <p class="settings-note">${escape(s.boundary_note||'30-mile radius centered on Sherman, Texas. Admins can change the center and radius in Company Settings.')}</p>
           <form class="form" id="launchForm">
             <label for="betaLabel">Area label</label>
             <input id="betaLabel" maxlength="120" required value="${escape(s.beta_area_label||'Sherman, Texas')}">
@@ -338,8 +338,8 @@
             <input id="betaRadius" type="number" min="1" max="250" step="1" required value="${Number(s.beta_area_radius_miles||30)}">
             <label for="launchDescription">Public area description</label>
             <textarea id="launchDescription" maxlength="1000" rows="4">${escape(s.launch_description||'')}</textarea>
-            ${toggle('launchEnabled','Beta area enabled','Operations flag only. Manual AI search uses the saved center and radius, not the browser.',!!s.launch_enabled)}
-            <div class="action-row"><button class="button" type="submit">Save beta listing area</button></div>
+            ${toggle('launchEnabled','Service area enabled','Operations flag only. Manual AI search uses the saved center and radius, not the browser.',!!s.launch_enabled)}
+            <div class="action-row"><button class="button" type="submit">Save service area</button></div>
             <p class="status" id="launchStatus"></p>
           </form>
         </section>
@@ -394,7 +394,7 @@
           <h2>Manual AI tools</h2>
           <p class="settings-note">AI may only propose listing leads or field updates. It cannot publish, overwrite public data, archive, delete listings from Golfolio, change roles, or change company settings by itself. Every result stays private until an admin applies or approves it.</p>
           <form id="aiPermsForm">
-            ${toggle('aiSearchEnabled','Enable manual AI listing search','Lets admins run one-off searches inside the saved Sherman beta radius. There is no AI search cron.',!!s.ai_manual_search_enabled)}
+            ${toggle('aiSearchEnabled','Enable manual AI listing search','Lets admins run one-off searches inside the saved Sherman service area. There is no AI search cron.',!!s.ai_manual_search_enabled)}
             ${toggle('aiResearchEnabled','Enable AI research / refresh of existing listings','Creates a private before/after proposal, including photos and review excerpts. Nothing is applied until you choose what to keep.',!!s.ai_research_enabled)}
             ${toggle('autoExpireEnabled','Enable automatic expiration of dated events','Courses and ongoing venues do not expire. This is the only cron, and it never calls OpenAI.',s.auto_expire_events_enabled!==false)}
             <div class="settings-note"><strong>Not available:</strong> AI cannot auto-publish listings or delete them from Golfolio.</div>
@@ -406,7 +406,7 @@
         <section class="card">
           <div class="kicker">Manual AI listing search</div>
           <h2>Find listing leads</h2>
-          <p class="settings-note">Search stays inside the saved Sherman beta radius. Results are private until you save a lead as pending. Leads with verified coordinates outside the radius are omitted; leads without coordinates show their source address for your manual radius check. If 25 listings are already pending, new search leads cannot be created. Research on existing listings still works.</p>
+          <p class="settings-note">Search stays inside the saved Sherman service area. Results are private until you save a lead as pending. Leads with verified coordinates outside the radius are omitted; leads without coordinates show their source address for your manual radius check. If 25 listings are already pending, new search leads cannot be created. Research on existing listings still works.</p>
           <form class="form" id="aiSearchForm">
             <label for="aiQuery">Natural-language search</label>
             <textarea id="aiQuery" maxlength="400" rows="3" placeholder="Charity golf tournaments within 30 miles of Sherman"></textarea>
@@ -465,7 +465,7 @@
       try{
         const d=await fetch('/api/ai',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'search',query:$('#aiQuery').value.trim()})}).then(async r=>{const x=await r.json();if(!r.ok)throw Error(x.error||'Search failed.');return x;});
         status.textContent=`${d.leads.length} private lead${d.leads.length===1?'':'s'} ready for review${d.omitted?` · ${d.omitted} omitted outside the radius or without a usable source`:''}. Queue ${d.pendingCount}/${d.pendingMax}.`;
-        results.innerHTML=d.leads.length?d.leads.map((lead,i)=>`<article class="card" style="margin-top:12px"><div class="kicker">${escape(lead.kind||'lead')} · ${escape(lead.city||'city unknown')}${lead.distance_miles!=null?` · ${lead.distance_miles} mi`:''}</div><h2 style="margin-top:8px">${escape(lead.title||'Untitled lead')}</h2><p>${escape(lead.venue_name||'Venue not verified')}</p>${lead.address?`<p>${escape(lead.address)}</p>`:''}<p class="settings-note">${escape(lead.relevance_note||'')} ${escape(lead.missing_note||'')} ${escape(lead.confidence||'')}</p><p>Source: ${lead.source_url?`<a href="${escape(lead.source_url)}" target="_blank" rel="noreferrer">${escape(lead.source_name||lead.source_url)}</a>`:'Not verified'}</p><p class="settings-note">${lead.distance_miles!=null?`${lead.distance_miles} miles from the beta center.`:'Coordinates were not returned. Verify the source address is inside the beta radius before saving.'}</p><div class="action-row"><button class="button" data-approve-lead="${i}">Save as pending</button><button class="button ghost" data-skip-lead="${i}">Dismiss</button></div><p class="status" data-lead-status="${i}"></p></article>`).join(''):'<p class="settings-note">No source-backed leads were returned for this beta-area search.</p>';
+        results.innerHTML=d.leads.length?d.leads.map((lead,i)=>`<article class="card" style="margin-top:12px"><div class="kicker">${escape(lead.kind||'lead')} · ${escape(lead.city||'city unknown')}${lead.distance_miles!=null?` · ${lead.distance_miles} mi`:''}</div><h2 style="margin-top:8px">${escape(lead.title||'Untitled lead')}</h2><p>${escape(lead.venue_name||'Venue not verified')}</p>${lead.address?`<p>${escape(lead.address)}</p>`:''}<p class="settings-note">${escape(lead.relevance_note||'')} ${escape(lead.missing_note||'')} ${escape(lead.confidence||'')}</p><p>Source: ${lead.source_url?`<a href="${escape(lead.source_url)}" target="_blank" rel="noreferrer">${escape(lead.source_name||lead.source_url)}</a>`:'Not verified'}</p><p class="settings-note">${lead.distance_miles!=null?`${lead.distance_miles} miles from the Sherman area center.`:'Coordinates were not returned. Verify the source address is inside the Sherman service area before saving.'}</p><div class="action-row"><button class="button" data-approve-lead="${i}">Save as pending</button><button class="button ghost" data-skip-lead="${i}">Dismiss</button></div><p class="status" data-lead-status="${i}"></p></article>`).join(''):'<p class="settings-note">No source-backed leads were returned for this Sherman area search.</p>';
         results.querySelectorAll('[data-approve-lead]').forEach(button=>button.onclick=async()=>{
           const i=Number(button.dataset.approveLead), note=results.querySelector(`[data-lead-status="${i}"]`);
           button.disabled=true; note.textContent='Saving as pending...';

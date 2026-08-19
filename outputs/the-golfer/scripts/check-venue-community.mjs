@@ -336,6 +336,18 @@ assert(safeFetch.includes('FETCH_TIMEOUT_MS'), 'Verification fetch must use a sh
 assert(safeFetch.includes('FETCH_MAX_BYTES'), 'Verification fetch must cap response size');
 assert(home.includes('cover_photo_url'), 'Dashboard cards must display approved cover photos');
 assert(home.includes('listing-cover'), 'Cover photos need a consistent crop');
+assert(home.includes('listing-card'), 'Dashboard cards must use the Explore listing card layout');
+assert(home.includes('explore-home.css'), 'Home must load Explore app styles');
+assert(home.includes('Where do you want to play?'), 'Home must open into the Explore dashboard');
+assert(home.includes('Explore nearby.'), 'Discovery board must be labeled Explore nearby');
+assert(home.includes('verified-badge'), 'Home cards must use the verified badge indicator');
+assert(home.includes('aria-label="Verified listing"'), 'Verified badge must expose an accessible label');
+assert(!home.includes(": 'Verified listing'") && !home.includes('Verified listing\')'), 'Home cards must not use Verified listing as fallback copy');
+assert(!/\bbeta\b/i.test(home.replace(/aria-label="Verified listing"/g, '')), 'Home must not expose beta wording');
+assert(listingPage.includes('verified-badge'), 'Listing detail must show the verified badge indicator');
+assert(!listingPage.includes('Verified listing</'), 'Listing detail must not repeat Verified listing label text');
+assert(!/\bbeta\b/i.test(readFileSync(join(root, 'player-pages.js'), 'utf8')), 'Player-facing pages must not expose beta wording');
+assert(!/\bbeta\b/i.test(readFileSync(join(root, 'company/index.html'), 'utf8')), 'Company admin page must not expose beta wording');
 assert(home.includes('locked-card'), 'Signed-out home must use locked preview cards');
 assert(home.includes('Sign in to explore verified golf near you.'), 'Signed-out home must use the sign-in gate copy');
 assert(home.includes('Create a free player account to unlock the board.'), 'Signed-out home must offer account creation');
