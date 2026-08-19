@@ -1,5 +1,8 @@
 {
   "crons": [
-    { "path": "/api/discovery", "schedule": "0 12 * * *" }
+    {
+      "path": "/api/expire",
+      "schedule": "10 6 * * *"
+    }
   ]
 }
