@@ -114,7 +114,6 @@
   grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
   gap: 22px;
   align-items: start;
-  max-width: 1120px;
   margin: -36px auto 0;
   padding: 0 max(20px, calc((100% - 1120px) / 2));
 }
