@@ -4,8 +4,11 @@ import { fileURLToPath } from 'url';
 import {
   ADMIN_REVIEW_ACTIONS,
   ADMIN_VENUE_PHOTO_ACTIONS,
+  BACKFILL_VENUE_PHOTO_ACTION,
+  OFFICIAL_VENUE_PHOTO_MAX,
   canLogRoundAtListing,
   canModerateCommunity,
+  canReceiveOfficialVenuePhotos,
   canReviewListing,
   isOfficialVenuePhoto,
   officialHostsForListing
@@ -302,7 +305,11 @@ assert(reviewsApi.includes('canModerateCommunity'), 'Review API must check admin
 assert(reviewsApi.includes('canReviewListing'), 'Review API must block event listings');
 assert(venueApi.includes('requireAdmin(req)'), 'Venue photo writes must require admin');
 for (const action of ADMIN_VENUE_PHOTO_ACTIONS) {
-  assert(venueApi.includes(`action === '${action}'`) || venueApi.includes(`'${action}'`), `Venue photo API must handle ${action}`);
+  const handled =
+    venueApi.includes(`action === '${action}'`) ||
+    venueApi.includes(`'${action}'`) ||
+    (action === BACKFILL_VENUE_PHOTO_ACTION && venueApi.includes('action === BACKFILL_VENUE_PHOTO_ACTION'));
+  assert(handled, `Venue photo API must handle ${action}`);
 }
 assert(venueApi.includes('verifyOfficialVenuePhoto'), 'Venue photo import must verify official pages server-side');
 assert(!venueApi.includes('listing.official_website || listing.source_url'), 'Venue photo find must not fall back to source_url');
@@ -377,6 +384,103 @@ assert(!home.includes('search-surface') && !home.includes('locked-card'), 'Signe
 assert(home.includes('site-footer') && home.includes('verified-explainer'), 'Home must include footer and verified explainer');
 assert(!home.includes('Human-verified') && !home.includes('Private location handling'), 'Sherman panel must not show unsupported claims');
 
+// ── One-time official-photo backfill ──
+const adminPages = readFileSync(join(root, 'player-pages.js'), 'utf8');
+const vercelConfig = readFileSync(join(root, 'vercel.json'), 'utf8');
+
+assert(BACKFILL_VENUE_PHOTO_ACTION === 'find_and_autoapprove_for_backfill', 'Backfill action name must stay explicit');
+assert(ADMIN_VENUE_PHOTO_ACTIONS.includes(BACKFILL_VENUE_PHOTO_ACTION), 'Backfill action must be an admin-only venue photo action');
+assert(ADMIN_VENUE_PHOTO_ACTIONS.includes('find'), 'Manual find action must remain available');
+
+assert(
+  canReceiveOfficialVenuePhotos({ status: 'approved', kind: 'tournament', official_website: 'https://cedarcreekgolf.com' }) === true,
+  'Approved non-course listings with an official website may receive official photos'
+);
+assert(
+  canReviewListing({ status: 'approved', kind: 'tournament', official_website: 'https://cedarcreekgolf.com' }) === false,
+  'Official photo eligibility must not make event listings reviewable'
+);
+assert(
+  canLogRoundAtListing({ status: 'approved', kind: 'corporate', official_website: 'https://cedarcreekgolf.com' }) === false,
+  'Official photo eligibility must not make event listings round-loggable'
+);
+assert(
+  canReceiveOfficialVenuePhotos({ status: 'pending', kind: 'course', official_website: 'https://cedarcreekgolf.com' }) === false,
+  'Unapproved listings must never receive backfilled official photos'
+);
+assert(
+  canReceiveOfficialVenuePhotos({ status: 'approved', kind: 'course', official_website: null }) === false,
+  'Listings without an official website must be skipped by the backfill'
+);
+assert(
+  canReceiveOfficialVenuePhotos({ status: 'approved', kind: 'course', official_website: 'not-a-url' }) === false,
+  'An invalid official website must not enable the backfill'
+);
+
+assert(venueApi.includes('action === BACKFILL_VENUE_PHOTO_ACTION'), 'Backfill must be a dedicated explicit action');
+assert(venueApi.includes('canReceiveOfficialVenuePhotos'), 'Backfill must check official-website eligibility');
+assert(
+  venueApi.includes("status: autoApprove ? 'approved' : 'pending'"),
+  'Only the explicit backfill flag may approve a venue photo on insert'
+);
+assert(venueApi.includes('autoApprove: false'), 'The normal find action must stay pending for manual review');
+assert(venueApi.includes('autoApprove: true'), 'The backfill action must request auto-approval explicitly');
+assert(
+  venueApi.indexOf('autoApprove: false') < venueApi.indexOf('autoApprove: true'),
+  'The manual find action must remain the non-approving default path'
+);
+assert(
+  venueApi.includes('verifyOfficialVenuePhoto({ imageUrl: image_url, sourceUrl: source_url, listing, pageCache })'),
+  'Every backfilled photo must pass official-site verification before it is stored'
+);
+assert(
+  !/autoApprove[\s\S]{0,400}verified\.ok/.test(venueApi) || venueApi.includes('if (!verified.ok) {'),
+  'Auto-approval must not bypass the verification result'
+);
+assert(
+  venueApi.includes('remainingSlots: OFFICIAL_VENUE_PHOTO_MAX - already'),
+  'Backfill must respect the maximum approved official photos per listing'
+);
+assert(
+  venueApi.includes("reason: 'already_full'"),
+  'Listings already at the official-photo maximum must be skipped'
+);
+assert(
+  venueApi.includes('Math.min(OFFICIAL_VENUE_PHOTO_MAX, remainingSlots'),
+  'Backfill inserts must stay within the official photo maximum'
+);
+assert(
+  venueApi.includes('have.has(image_url)'),
+  'Backfill must not duplicate or overwrite an existing official photo'
+);
+assert(
+  !venueApi.includes("status: 'approved', reviewed_by") || venueApi.includes('autoApprove'),
+  'Approved status must only come from an admin-reviewed or explicit backfill path'
+);
+assert(OFFICIAL_VENUE_PHOTO_MAX === 3, 'Official venue photos stay capped at three per listing');
+
+assert(adminPages.includes('Populate official listing photos'), 'Admin Listings must expose the one-time backfill tool');
+assert(
+  adminPages.includes('This one-time action checks each approved listing’s official website.'),
+  'Backfill must show the required confirmation before it starts'
+);
+assert(adminPages.includes(`action:'${BACKFILL_VENUE_PHOTO_ACTION}'`), 'Admin UI must call the explicit backfill action');
+assert(adminPages.includes('view=backfill_targets'), 'Admin UI must load backfill targets one listing at a time');
+assert(adminPages.includes('backfillStopped'), 'Admin must be able to stop the backfill run');
+assert(
+  adminPages.includes("if(profile.role!=='admin')throw Error('Admin access is required to manage listings.')"),
+  'The backfill tool must stay inside the admin-only Listings page'
+);
+const cronPaths = (JSON.parse(vercelConfig).crons || []).map((entry) => entry.path);
+assert(
+  cronPaths.every((path) => path === '/api/expire'),
+  'Backfill must not add a scheduled job beyond the existing listing-expiry cron'
+);
+assert(
+  !cronPaths.some((path) => /venue|photo|backfill/i.test(path)),
+  'Official photo backfill must stay a manual admin action, never a cron'
+);
+
 const gateSqlPath = join(root, 'supabase/signed-in-data-gate-migration.sql');
 const gateSql = readFileSync(gateSqlPath, 'utf8');
 assert(gateSql.includes('alter table public.listings enable row level security'), 'Listings RLS must stay enabled');
@@ -435,6 +539,25 @@ await assertHandler401(listingHandler, { id: '00000000-0000-0000-0000-0000000000
 await assertHandler401(reviewsHandler, { listing_id: '00000000-0000-0000-0000-000000000001' }, '/api/reviews must return 401 without a session');
 await assertHandler401(venuePhotosHandler, { listing_id: '00000000-0000-0000-0000-000000000001' }, '/api/venue-photos must return 401 without a session');
 await assertHandler401(playerHandler, {}, '/api/player must return 401 without a session');
+await assertHandler401(
+  venuePhotosHandler,
+  { view: 'backfill_targets' },
+  'Backfill target list must require an admin session'
+);
+
+async function assertPostHandler401(handler, body, message) {
+  const res = mockRes();
+  await handler({ method: 'POST', query: {}, headers: {}, body }, res);
+  assert(res.statusCode === 401, message);
+}
+
+const backfillBody = { action: BACKFILL_VENUE_PHOTO_ACTION, listing_id: '00000000-0000-0000-0000-000000000001' };
+await assertPostHandler401(venuePhotosHandler, backfillBody, 'Only signed-in admins may run the official photo backfill');
+await assertPostHandler401(
+  venuePhotosHandler,
+  { action: 'find', listing_id: '00000000-0000-0000-0000-000000000001' },
+  'Only signed-in admins may run the manual official photo find'
+);
 
 const usableRow = (row) => row && (row.id || row.title || row.body || row.image_url || row.course_name);
 async function assertAnonRestBlocked(path, message) {
@@ -467,6 +590,8 @@ console.log('- Event listings cannot be reviewed.');
 console.log('- Official venue photos may use a referenced CDN, but not an unreferenced one.');
 console.log('- Listing, review, venue-photo, and player APIs require a signed-in session.');
 console.log('- Anonymous public-read RLS policies are replaced by authenticated-only policies.');
+console.log('- The official photo backfill is admin-only, explicit, capped at three photos, and never a cron.');
+console.log('- Manual find still stores pending photos; only the backfill action approves verified official images.');
 console.log(restProbe.includes('probed')
   ? '- Live anon-key REST probes returned no usable listing/review/photo/round rows.'
   : '- Live anon-key REST probes skipped (SUPABASE_URL / SUPABASE_ANON_KEY not set in this environment).');

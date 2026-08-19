@@ -67,6 +67,14 @@ export function canReviewListing(listing) {
   return true;
 }
 
+// Official venue photos come from the listing's own website, so every approved
+// kind may carry them. This is deliberately wider than canReviewListing, which
+// still limits player reviews and rounds to courses and simulators.
+export function canReceiveOfficialVenuePhotos(listing) {
+  if (!listing || listing.status !== 'approved') return false;
+  return isHttpUrl(listing.official_website);
+}
+
 export function canLogRoundAtListing(listing) {
   return canReviewListing(listing);
 }
@@ -76,7 +84,16 @@ export function canModerateCommunity(profile) {
 }
 
 export const ADMIN_REVIEW_ACTIONS = ['approve', 'reject', 'approve_photo', 'reject_photo'];
-export const ADMIN_VENUE_PHOTO_ACTIONS = ['find', 'approve', 'reject', 'remove'];
+
+// One-time admin backfill only. The normal `find` action always stays pending.
+export const BACKFILL_VENUE_PHOTO_ACTION = 'find_and_autoapprove_for_backfill';
+export const ADMIN_VENUE_PHOTO_ACTIONS = [
+  'find',
+  BACKFILL_VENUE_PHOTO_ACTION,
+  'approve',
+  'reject',
+  'remove'
+];
 
 export function publicReview(row, { includePrivate = false, photoUrl = null, viewerId = null } = {}) {
   if (!row) return null;

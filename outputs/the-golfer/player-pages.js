@@ -466,11 +466,48 @@
     };
   };
 
+  const BACKFILL_CONFIRM='This one-time action checks each approved listing’s official website. Only photos verified from that website will be approved automatically. Listings without eligible official photos will be skipped.';
   const mountListings=async()=>{
     const d=await api('?view=me');
     profile=d.profile||{};
     if(profile.role!=='admin')throw Error('Admin access is required to manage listings.');
     const body=$('#pageBody');
+    let backfillRunning=false,backfillStopped=false;
+    const logLine=(list,text)=>{if(!list)return;const li=document.createElement('li');li.textContent=text;list.append(li)};
+    const runPhotoBackfill=async panel=>{
+      if(backfillRunning||!panel)return;
+      if(!confirm(BACKFILL_CONFIRM))return;
+      backfillRunning=true;backfillStopped=false;
+      panel.hidden=false;
+      panel.innerHTML='<div class="kicker">One-time backfill</div><h2>Populate official listing photos</h2><p class="settings-note">Only images verified on each listing’s own official website are approved. Nothing is downloaded or re-hosted.</p><p class="status" id="backfillProgress">Loading approved listings...</p><div class="action-row"><button class="button ghost" id="backfillStop" type="button">Stop</button></div><ul id="backfillLog" class="settings-note"></ul>';
+      const progress=panel.querySelector('#backfillProgress'),log=panel.querySelector('#backfillLog'),stop=panel.querySelector('#backfillStop');
+      stop.onclick=()=>{backfillStopped=true;stop.disabled=true;progress.textContent='Stopping after the current listing. Photos already approved stay approved.'};
+      const summary={checked:0,updated:0,approved:0,skipped:0,failed:0};
+      try{
+        const r=await fetch('/api/venue-photos?view=backfill_targets',{headers:{Authorization:'Bearer '+session.access_token}});
+        const data=await r.json();
+        if(!r.ok)throw Error(data.error||'Could not load approved listings.');
+        const targets=(data.listings||[]).filter(x=>!x.full);
+        const total=targets.length;
+        if(!total){progress.textContent='No approved listing needs official photos right now.';return}
+        for(let i=0;i<total;i++){
+          if(backfillStopped)break;
+          const target=targets[i];
+          progress.textContent=`Checking ${target.title} — ${i+1} of ${total}`;
+          summary.checked++;
+          try{
+            const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'find_and_autoapprove_for_backfill',listing_id:target.id})});
+            const x=await resp.json();
+            if(!resp.ok)throw Error(x.error||'Request failed.');
+            const added=Number(x.approved||0);
+            if(added>0){summary.updated++;summary.approved+=added;logLine(log,`${target.title}: approved ${added} official photo${added===1?'':'s'}`)}
+            else{summary.skipped++;logLine(log,`${target.title}: skipped — no verifiable official photo`)}
+          }catch(err){summary.failed++;logLine(log,`${target.title}: failed — ${err.message}`)}
+        }
+        progress.textContent=`${backfillStopped?'Stopped':'Finished'}. Listings checked ${summary.checked}. Listings updated ${summary.updated}. Photos approved ${summary.approved}. Skipped with no verifiable official photo ${summary.skipped}. Failures ${summary.failed}.`;
+      }catch(err){progress.textContent=err.message}
+      finally{backfillRunning=false;if(stop)stop.disabled=true}
+    };
     const load=async(view='active')=>{
       body.innerHTML='<section class="card"><p>Loading listings...</p></section>';
       if(view==='community'){
@@ -521,8 +558,10 @@
       const dateLabel=x=>{if(!x.starts_at)return 'Event date not set';const days=Math.ceil((new Date(x.starts_at).getTime()-Date.now())/86400000);if(days<0)return `Event passed ${Math.abs(days)} day${Math.abs(days)===1?'':'s'} ago`;if(days===0)return 'Event is today';return `Event in ${days} day${days===1?'':'s'}`};
       const actions=x=>`<div class="action-row"><a class="button ghost" href="/listings/edit/?id=${encodeURIComponent(x.id)}">Edit listing</a>${x.status==='pending'?`<button class="button" data-id="${escape(x.id)}" data-action="approve">Approve</button><button class="button ghost" data-id="${escape(x.id)}" data-action="reject">Reject</button>`:''}${['approved','pending','rejected'].includes(x.status)?`<button class="button ghost" data-id="${escape(x.id)}" data-action="archive">Archive listing</button>`:''}${['archived','expired'].includes(x.status)?`<button class="button" data-id="${escape(x.id)}" data-action="restore">Restore</button>`:''}<button class="button ghost" data-id="${escape(x.id)}" data-action="research">Research / refresh with AI</button><button class="button ghost" data-id="${escape(x.id)}" data-action="delete">Delete from Golfolio</button></div>`;
       const card=x=>`<article class="card"><div class="kicker">${escape(x.status)} · ${escape(x.kind||'Listing')} · ${escape(x.city||'No city')}</div><h2 style="margin-top:8px">${escape(x.title)}</h2><p>${ageLabel(x)} · ${dateLabel(x)}</p><p>${escape(x.venue_name||'Venue not verified')}</p><p>Source: ${escape(x.source_name||'Not provided')}</p>${/^https?:\/\//i.test(x.source_url||'')?`<p><a href="${escape(x.source_url)}" target="_blank" rel="noreferrer">Open source</a></p>`:''}${actions(x)}<p class="status" data-row-status="${escape(x.id)}"></p></article>`;
-      body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ${view==='active'?'':'ghost'}" data-view="active">Pending & approved</button><button class="button ${view==='archived'?'':'ghost'}" data-view="archived">Archived / expired</button><button class="button ghost" data-view="community">Community</button><a class="button ghost" href="/company">Manual AI search</a></div><section class="stat-grid"><div class="stat"><b>${data.pendingCount??pending.length}</b><span>Pending / ${data.pendingMax||25}</span></div><div class="stat"><b>${approved.length}</b><span>Approved</span></div><div class="stat"><b>${archived.length}</b><span>Archived / expired</span></div></section><section class="settings-stack" style="margin-top:18px">${view==='archived'?`<section class="card"><div class="kicker">Not public</div><h2>Archived / expired</h2>${archived.length?`<div class="players">${archived.map(card).join('')}</div>`:'<p class="settings-note">Nothing is archived or expired.</p>'}</section>`:`<section class="card"><div class="kicker">Needs review</div><h2>Pending approval</h2>${pending.length?`<div class="players">${pending.map(card).join('')}</div>`:'<p class="settings-note">Nothing is waiting for approval.</p>'}</section><section class="card"><div class="kicker">Published</div><h2>Approved listings</h2>${approved.length?`<div class="players">${approved.map(card).join('')}</div>`:'<p class="settings-note">No listings have been approved yet.</p>'}</section>`}</section>`;
+      body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ${view==='active'?'':'ghost'}" data-view="active">Pending & approved</button><button class="button ${view==='archived'?'':'ghost'}" data-view="archived">Archived / expired</button><button class="button ghost" data-view="community">Community</button><a class="button ghost" href="/company">Manual AI search</a><button class="button ghost" id="backfillPhotos" type="button">Populate official listing photos</button></div><section class="card" id="backfillPanel" hidden></section><section class="stat-grid"><div class="stat"><b>${data.pendingCount??pending.length}</b><span>Pending / ${data.pendingMax||25}</span></div><div class="stat"><b>${approved.length}</b><span>Approved</span></div><div class="stat"><b>${archived.length}</b><span>Archived / expired</span></div></section><section class="settings-stack" style="margin-top:18px">${view==='archived'?`<section class="card"><div class="kicker">Not public</div><h2>Archived / expired</h2>${archived.length?`<div class="players">${archived.map(card).join('')}</div>`:'<p class="settings-note">Nothing is archived or expired.</p>'}</section>`:`<section class="card"><div class="kicker">Needs review</div><h2>Pending approval</h2>${pending.length?`<div class="players">${pending.map(card).join('')}</div>`:'<p class="settings-note">Nothing is waiting for approval.</p>'}</section><section class="card"><div class="kicker">Published</div><h2>Approved listings</h2>${approved.length?`<div class="players">${approved.map(card).join('')}</div>`:'<p class="settings-note">No listings have been approved yet.</p>'}</section>`}</section>`;
       body.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>load(button.dataset.view));
+      const backfillButton=body.querySelector('#backfillPhotos');
+      if(backfillButton)backfillButton.onclick=()=>runPhotoBackfill(body.querySelector('#backfillPanel'));
       body.querySelectorAll('button[data-action]').forEach(button=>button.onclick=async()=>{
         const id=button.dataset.id, action=button.dataset.action, note=body.querySelector(`[data-row-status="${id}"]`);
         if(action==='delete'){
