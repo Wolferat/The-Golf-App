@@ -30,6 +30,16 @@ Current beta search area is a **30-mile radius centered on Sherman, Texas** (`33
 SQL for this:
 
 6. `supabase/sherman-beta-area-migration.sql` (additive; does not delete listings)
+7. `supabase/venue-community-migration.sql` (player reviews, official venue-photo URLs, `rounds.listing_id`)
+
+Run **only** the SQL files in the Supabase SQL Editor. Do not run them from the app, a cron, or this agent.
+
+Venue community notes:
+
+- Player reviews are for approved `course` and `simulator` listings only. One review per player per listing. Reviews and attached review photos start `pending`.
+- There is no standalone community photo gallery. A player may attach one image to their review.
+- Official venue photos are admin-only imports of remote URLs from the venue’s own website. They are not downloaded or re-hosted, and they stay pending until approved.
+- There is still **no scheduled AI listing search**. Official photo search runs only when an admin clicks **Find official venue photos**.
 
 Destructive, manual-only catalog reset (do not run from the app):
 

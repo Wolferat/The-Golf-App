@@ -18,7 +18,15 @@ export default async function handler(req, res) {
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_ANON_KEY;
   if (!url || !key) return res.status(200).json({ listings: [] });
   const kind = String(req.query?.kind || '').trim();
-  const kindFilter = KINDS.includes(kind) ? `&kind=eq.${encodeURIComponent(kind)}` : '';
+  const kinds = String(req.query?.kinds || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => KINDS.includes(item));
+  const kindFilter = kinds.length
+    ? `&kind=in.(${kinds.map(encodeURIComponent).join(',')})`
+    : KINDS.includes(kind)
+      ? `&kind=eq.${encodeURIComponent(kind)}`
+      : '';
   let response = await fetchApproved(url, key, FULL_SELECT, kindFilter);
   if (!response.ok) response = await fetchApproved(url, key, BASIC_SELECT, kindFilter);
   if (!response.ok) return res.status(502).json({ error: 'Could not load listings.' });

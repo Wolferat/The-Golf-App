@@ -85,7 +85,23 @@
     $('#logRound').onclick=()=>openRound();
   };
 
-  const openRound=()=>{$('#roundDialog').hidden=false;$('#roundDate').value=new Date().toISOString().slice(0,10);$('#roundDialog').scrollIntoView({behavior:'smooth',block:'center'})};
+  const openRound=()=>{
+    $('#roundDialog').hidden=false;
+    $('#roundDate').value=new Date().toISOString().slice(0,10);
+    const sel=$('#roundVenue');
+    if(sel&&!sel.dataset.loaded){
+      fetch('/api/listings?kinds=course,simulator').then(r=>r.json()).then(d=>{
+        const venues=(d.listings||[]).filter(x=>x.kind==='course'||x.kind==='simulator');
+        sel.innerHTML='<option value="">Enter a course name below</option>'+venues.map(v=>`<option value="${escape(v.id)}">${escape(v.title)}${v.city?' · '+escape(v.city):''}</option>`).join('');
+        sel.dataset.loaded='1';
+        sel.onchange=()=>{
+          const opt=sel.selectedOptions[0];
+          if(sel.value)$('#roundCourse').value=(opt.textContent||'').split(' · ')[0];
+        };
+      }).catch(()=>{});
+    }
+    $('#roundDialog').scrollIntoView({behavior:'smooth',block:'center'});
+  };
 
   const mountPlayers=async()=>{
     profile=(await api('?view=me')).profile||{};
@@ -471,6 +487,45 @@
     const body=$('#pageBody');
     const load=async(view='active')=>{
       body.innerHTML='<section class="card"><p>Loading listings...</p></section>';
+      if(view==='community'){
+        const [revRes,photoRes]=await Promise.all([
+          fetch('/api/reviews?view=pending',{headers:{Authorization:'Bearer '+session.access_token}}),
+          fetch('/api/venue-photos?view=pending',{headers:{Authorization:'Bearer '+session.access_token}})
+        ]);
+        const reviewsData=await revRes.json().catch(()=>({}));
+        const photosData=await photoRes.json().catch(()=>({}));
+        if(!revRes.ok)throw Error(reviewsData.error||'Could not load pending reviews.');
+        if(!photoRes.ok)throw Error(photosData.error||'Could not load pending venue photos.');
+        const pendingReviews=reviewsData.reviews||[];
+        const pendingPhotos=photosData.photos||[];
+        const reviewPending=pendingReviews.filter(x=>x.status==='pending');
+        const photoPending=pendingReviews.filter(x=>x.photo_status==='pending'&&x.photo_url);
+        body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ghost" data-view="active">Pending & approved</button><button class="button ghost" data-view="archived">Archived / expired</button><button class="button" data-view="community">Community</button><a class="button ghost" href="/company">Manual AI search</a></div>
+          <section class="stat-grid"><div class="stat"><b>${reviewPending.length}</b><span>Pending reviews</span></div><div class="stat"><b>${photoPending.length}</b><span>Pending review photos</span></div><div class="stat"><b>${pendingPhotos.length}</b><span>Pending official photos</span></div></section>
+          <section class="settings-stack" style="margin-top:18px">
+            <section class="card"><div class="kicker">Needs review</div><h2>Player reviews</h2>${reviewPending.length?reviewPending.map(rv=>`<article class="review-card"><div class="kicker">${escape(rv.listing_kind||'listing')} · ${escape(rv.listing_title||'Listing')}</div><div class="review-head"><div class="avatar">${escape(rv.avatar||'G')}</div><div><strong>${escape(rv.username)}</strong><small>${escape(rv.status)}</small></div></div><p>${escape(rv.body)}</p>${rv.photo_url?`<img class="review-photo" src="${escape(rv.photo_url)}" alt="">`:''}<div class="action-row"><button class="button" data-review-action="approve" data-id="${escape(rv.id)}">Approve review</button><button class="button ghost" data-review-action="reject" data-id="${escape(rv.id)}">Reject</button></div></article>`).join(''):'<p class="settings-note">No player reviews are waiting.</p>'}</section>
+            <section class="card"><div class="kicker">Needs review</div><h2>Review photos</h2>${photoPending.length?photoPending.map(rv=>`<article class="review-card"><div class="kicker">${escape(rv.listing_title||'Listing')} · ${escape(rv.username)}</div>${rv.photo_url?`<img class="review-photo" src="${escape(rv.photo_url)}" alt="">`:''}<div class="action-row"><button class="button" data-review-action="approve_photo" data-id="${escape(rv.id)}">Approve photo</button><button class="button ghost" data-review-action="reject_photo" data-id="${escape(rv.id)}">Reject photo</button></div></article>`).join(''):'<p class="settings-note">No review photos are waiting.</p>'}</section>
+            <section class="card"><div class="kicker">Needs review</div><h2>Official venue photos</h2>${pendingPhotos.length?pendingPhotos.map(p=>`<article class="review-card"><div class="kicker">${escape(p.listing_kind||'listing')} · ${escape(p.listing_title||'Listing')}</div><img class="review-photo" src="${escape(p.image_url)}" alt="" referrerpolicy="no-referrer"><p class="settings-note">From the official venue website · <a href="${escape(p.source_url)}" target="_blank" rel="noreferrer">${escape(p.source_name||'Official site')}</a></p><div class="action-row"><button class="button" data-photo-action="approve" data-id="${escape(p.id)}">Approve</button><button class="button ghost" data-photo-action="reject" data-id="${escape(p.id)}">Reject</button><button class="button ghost" data-photo-action="remove" data-id="${escape(p.id)}">Remove</button></div></article>`).join(''):'<p class="settings-note">No official photo imports are waiting.</p>'}</section>
+          </section>`;
+        body.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>load(button.dataset.view));
+        body.querySelectorAll('[data-review-action]').forEach(button=>button.onclick=async()=>{
+          button.disabled=true;
+          try{
+            const resp=await fetch('/api/reviews',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:button.dataset.id,action:button.dataset.reviewAction})});
+            const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
+            load('community');
+          }catch(err){button.disabled=false;alert(err.message)}
+        });
+        body.querySelectorAll('[data-photo-action]').forEach(button=>button.onclick=async()=>{
+          button.disabled=true;
+          try{
+            const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:button.dataset.id,action:button.dataset.photoAction})});
+            const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
+            load('community');
+          }catch(err){button.disabled=false;alert(err.message)}
+        });
+        return;
+      }
       const r=await fetch('/api/admin?view='+encodeURIComponent(view),{headers:{Authorization:'Bearer '+session.access_token}});
       const data=await r.json();
       if(!r.ok)throw Error(data.error||'Could not load listings.');
@@ -480,7 +535,7 @@
       const dateLabel=x=>{if(!x.starts_at)return 'Event date not set';const days=Math.ceil((new Date(x.starts_at).getTime()-Date.now())/86400000);if(days<0)return `Event passed ${Math.abs(days)} day${Math.abs(days)===1?'':'s'} ago`;if(days===0)return 'Event is today';return `Event in ${days} day${days===1?'':'s'}`};
       const actions=x=>`<div class="action-row"><a class="button ghost" href="/listings/edit/?id=${encodeURIComponent(x.id)}">Edit listing</a>${x.status==='pending'?`<button class="button" data-id="${escape(x.id)}" data-action="approve">Approve</button><button class="button ghost" data-id="${escape(x.id)}" data-action="reject">Reject</button>`:''}${['approved','pending','rejected'].includes(x.status)?`<button class="button ghost" data-id="${escape(x.id)}" data-action="archive">Archive listing</button>`:''}${['archived','expired'].includes(x.status)?`<button class="button" data-id="${escape(x.id)}" data-action="restore">Restore</button>`:''}<button class="button ghost" data-id="${escape(x.id)}" data-action="research">Research / refresh with AI</button><button class="button ghost" data-id="${escape(x.id)}" data-action="delete">Delete from Golfolio</button></div>`;
       const card=x=>`<article class="card"><div class="kicker">${escape(x.status)} · ${escape(x.kind||'Listing')} · ${escape(x.city||'No city')}</div><h2 style="margin-top:8px">${escape(x.title)}</h2><p>${ageLabel(x)} · ${dateLabel(x)}</p><p>${escape(x.venue_name||'Venue not verified')}</p><p>Source: ${escape(x.source_name||'Not provided')}</p>${/^https?:\/\//i.test(x.source_url||'')?`<p><a href="${escape(x.source_url)}" target="_blank" rel="noreferrer">Open source</a></p>`:''}${actions(x)}<p class="status" data-row-status="${escape(x.id)}"></p></article>`;
-      body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ${view==='active'?'':'ghost'}" data-view="active">Pending & approved</button><button class="button ${view==='archived'?'':'ghost'}" data-view="archived">Archived / expired</button><a class="button ghost" href="/company">Manual AI search</a></div><section class="stat-grid"><div class="stat"><b>${data.pendingCount??pending.length}</b><span>Pending / ${data.pendingMax||25}</span></div><div class="stat"><b>${approved.length}</b><span>Approved</span></div><div class="stat"><b>${archived.length}</b><span>Archived / expired</span></div></section><section class="settings-stack" style="margin-top:18px">${view==='archived'?`<section class="card"><div class="kicker">Not public</div><h2>Archived / expired</h2>${archived.length?`<div class="players">${archived.map(card).join('')}</div>`:'<p class="settings-note">Nothing is archived or expired.</p>'}</section>`:`<section class="card"><div class="kicker">Needs review</div><h2>Pending approval</h2>${pending.length?`<div class="players">${pending.map(card).join('')}</div>`:'<p class="settings-note">Nothing is waiting for approval.</p>'}</section><section class="card"><div class="kicker">Published</div><h2>Approved listings</h2>${approved.length?`<div class="players">${approved.map(card).join('')}</div>`:'<p class="settings-note">No listings have been approved yet.</p>'}</section>`}</section>`;
+      body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ${view==='active'?'':'ghost'}" data-view="active">Pending & approved</button><button class="button ${view==='archived'?'':'ghost'}" data-view="archived">Archived / expired</button><button class="button ghost" data-view="community">Community</button><a class="button ghost" href="/company">Manual AI search</a></div><section class="stat-grid"><div class="stat"><b>${data.pendingCount??pending.length}</b><span>Pending / ${data.pendingMax||25}</span></div><div class="stat"><b>${approved.length}</b><span>Approved</span></div><div class="stat"><b>${archived.length}</b><span>Archived / expired</span></div></section><section class="settings-stack" style="margin-top:18px">${view==='archived'?`<section class="card"><div class="kicker">Not public</div><h2>Archived / expired</h2>${archived.length?`<div class="players">${archived.map(card).join('')}</div>`:'<p class="settings-note">Nothing is archived or expired.</p>'}</section>`:`<section class="card"><div class="kicker">Needs review</div><h2>Pending approval</h2>${pending.length?`<div class="players">${pending.map(card).join('')}</div>`:'<p class="settings-note">Nothing is waiting for approval.</p>'}</section><section class="card"><div class="kicker">Published</div><h2>Approved listings</h2>${approved.length?`<div class="players">${approved.map(card).join('')}</div>`:'<p class="settings-note">No listings have been approved yet.</p>'}</section>`}</section>`;
       body.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>load(button.dataset.view));
       body.querySelectorAll('button[data-action]').forEach(button=>button.onclick=async()=>{
         const id=button.dataset.id, action=button.dataset.action, note=body.querySelector(`[data-row-status="${id}"]`);
@@ -517,6 +572,12 @@
     const data=await r.json();
     if(!r.ok)throw Error(data.error||'Could not load listing.');
     const listing=data.listing, proposals=data.proposals||[];
+    let venuePhotos=[];
+    if(['course','simulator'].includes(listing.kind)){
+      const vp=await fetch('/api/venue-photos?listing_id='+encodeURIComponent(id)+'&view=pending',{headers:{Authorization:'Bearer '+session.access_token}});
+      const vpData=await vp.json().catch(()=>({}));
+      if(vp.ok)venuePhotos=vpData.photos||[];
+    }
     const wanted=new URLSearchParams(location.search).get('proposal');
     const proposal=proposals.find(x=>x.id===wanted&&x.kind==='enrichment'&&x.status==='pending')||proposals.find(x=>x.kind==='enrichment'&&x.status==='pending');
     const val=x=>x==null?'':String(x);
@@ -555,6 +616,7 @@
         <div class="action-row"><button class="button" type="submit">Save listing</button><button class="button ghost" type="button" id="archiveBtn">Archive listing</button><button class="button ghost" type="button" id="deleteBtn">Delete from Golfolio</button></div>
         <p class="status" id="editStatusNote"></p>
       </form></section>
+      ${['course','simulator'].includes(listing.kind)?`<section class="card" style="margin-top:18px"><div class="kicker">Official venue photos</div><h2>From the official website only</h2><p class="settings-note">These are remote image URLs from the venue’s own website. Golfolio does not download or re-host them. Imports stay pending until you approve them. Maximum three public photos. Player review photos stay on the review, not here.</p>${venuePhotos.length?venuePhotos.map(p=>`<article class="review-card"><img class="review-photo" src="${escape(p.image_url)}" alt="" referrerpolicy="no-referrer"><p>${escape(p.status)} · <a href="${escape(p.source_url)}" target="_blank" rel="noreferrer">${escape(p.source_name||'Official site')}</a></p><div class="action-row">${p.status!=='approved'?`<button class="button" data-photo-action="approve" data-id="${escape(p.id)}">Approve</button>`:''}<button class="button ghost" data-photo-action="reject" data-id="${escape(p.id)}">Reject</button><button class="button ghost" data-photo-action="remove" data-id="${escape(p.id)}">Remove</button></div></article>`).join(''):'<p class="settings-note">No official photo imports yet.</p>'}${listing.status==='approved'?`<div class="action-row"><button class="button" type="button" id="findOfficialPhotos">Find official venue photos</button></div><p class="status" id="officialPhotoStatus"></p>`:'<p class="settings-note">Approve the listing before searching for official photos.</p>'}</section>`:''}
       <section class="card" style="margin-top:18px"><div class="kicker">AI research</div><h2>Before / after proposal</h2>
       ${proposal?`<p class="settings-note">Private proposal from ${new Date(proposal.created_at).toLocaleString()}. Public data is unchanged until you apply selected fields, photos, or review excerpts.</p>
         <div class="compare-grid">${Object.keys(fieldLabel).map(key=>{const current=listing[key]??'';const next=proposal.payload?.fields?.[key]?.value??'';const src=proposal.payload?.fields?.[key];return `<div class="compare-row"><strong>${fieldLabel[key]}</strong><div><span class="kicker">Current</span><p>${escape(val(current))||'—'}</p></div><div><span class="kicker">Proposed</span><p>${escape(val(next))||'—'}</p>${src?.source_url?`<p><a href="${escape(src.source_url)}" target="_blank" rel="noreferrer">${escape(src.source_name||'Source')}</a> · ${escape(src.evidence||'')}</p>`:''}<label class="check"><input type="checkbox" data-apply-field="${key}" ${next&&String(next)!==String(current)?'checked':''}> Apply this field</label></div></div>`}).join('')}${mediaRows}</div>
@@ -590,6 +652,28 @@
       const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:'delete',confirm:true})});
       const x=await resp.json(); if(!resp.ok){$('#editStatusNote').textContent=x.error;return} location.assign('/listings');
     };
+    const findOfficial=$('#findOfficialPhotos');
+    if(findOfficial){
+      findOfficial.onclick=async()=>{
+        const s=$('#officialPhotoStatus');
+        findOfficial.disabled=true;
+        s.textContent='Searching the official venue website...';
+        try{
+          const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'find',listing_id:id})});
+          const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Could not find official photos.');
+          s.textContent=x.message||'Saved as pending.';
+          setTimeout(()=>location.reload(),800);
+        }catch(err){s.textContent=err.message;findOfficial.disabled=false}
+      };
+    }
+    document.querySelectorAll('[data-photo-action]').forEach(button=>button.onclick=async()=>{
+      button.disabled=true;
+      try{
+        const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:button.dataset.id,action:button.dataset.photoAction})});
+        const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
+        location.reload();
+      }catch(err){button.disabled=false;alert(err.message)}
+    });
     if(proposal){
       const apply=async(fields)=>{
         const s=$('#proposalStatus'); s.textContent='Applying selected fields...';
@@ -637,7 +721,7 @@
     const s=$('#roundStatus');
     s.textContent='Saving round...';
     try{
-      await api('',{method:'POST',body:JSON.stringify({action:'round',round:{course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:$('#roundVisibility').value}})});
+      await api('',{method:'POST',body:JSON.stringify({action:'round',round:{listing_id:$('#roundVenue')?.value||null,course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:$('#roundVisibility').value}})});
       s.textContent='Round saved.';
       setTimeout(()=>location.reload(),450);
     }catch(err){s.textContent=err.message}

@@ -2,7 +2,7 @@ const json = (res, status, body) => res.status(status).json(body);
 
 export { json };
 
-export async function requireAdmin(req) {
+export async function requireUser(req) {
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_ANON_KEY;
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
@@ -12,13 +12,19 @@ export async function requireAdmin(req) {
   });
   if (!response.ok) return { error: { status: 401, body: { error: 'Sign in required.' } } };
   const user = await response.json();
-  const profileRes = await fetch(`${url}/rest/v1/profiles?id=eq.${user.id}&select=id,role,username`, {
+  const profileRes = await fetch(`${url}/rest/v1/profiles?id=eq.${user.id}&select=id,role,username,avatar`, {
     headers: { apikey: anon, Authorization: `Bearer ${token}` }
   });
   const [profile] = await profileRes.json().catch(() => []);
   if (!profile) return { error: { status: 401, body: { error: 'Sign in required.' } } };
-  if (profile.role !== 'admin') return { error: { status: 403, body: { error: 'Admin access required.' } } };
   return { user, profile, token };
+}
+
+export async function requireAdmin(req) {
+  const auth = await requireUser(req);
+  if (auth.error) return auth;
+  if (auth.profile.role !== 'admin') return { error: { status: 403, body: { error: 'Admin access required.' } } };
+  return auth;
 }
 
 export function serviceHeaders() {
@@ -63,4 +69,61 @@ export async function writeAudit({ listingId = null, proposalId = null, action, 
       details
     })
   });
+}
+
+export async function storageUpload(bucket, path, buffer, mime) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Storage is not configured.');
+  const response = await fetch(`${url}/storage/v1/object/${bucket}/${path}`, {
+    method: 'POST',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': mime,
+      'x-upsert': 'true'
+    },
+    body: buffer
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const err = new Error(body.message || 'Could not store that file.');
+    err.status = 502;
+    throw err;
+  }
+}
+
+export async function storageSignedUrl(bucket, path, expiresIn = 3600) {
+  if (!path) return null;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  const response = await fetch(`${url}/storage/v1/object/sign/${bucket}/${path}`, {
+    method: 'POST',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ expiresIn })
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.signedURL) return null;
+  return body.signedURL.startsWith('http') ? body.signedURL : `${url}/storage/v1${body.signedURL}`;
+}
+
+export async function storageRemove(bucket, path) {
+  if (!path) return;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return;
+  await fetch(`${url}/storage/v1/object/${bucket}`, {
+    method: 'DELETE',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ prefixes: [path] })
+  }).catch(() => {});
 }

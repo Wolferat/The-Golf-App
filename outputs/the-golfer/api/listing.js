@@ -1,4 +1,5 @@
 import { publicListing } from '../lib/listings.js';
+import { canLogRoundAtListing, canReviewListing } from '../lib/reviews.js';
 
 const FULL_SELECT = [
   'id','title','kind','status','description','city','venue_name','address','phone',
@@ -23,6 +24,36 @@ export default async function handler(req, res) {
   if (!response.ok || !listing) {
     return res.status(404).json({ error: 'That listing is not available.' });
   }
+
+  let rating = { average: null, count: 0 };
+  let official_photos = [];
+  try {
+    const reviewRes = await fetch(
+      `${url}/rest/v1/listing_reviews?listing_id=eq.${encodeURIComponent(id)}&status=eq.approved&select=rating`,
+      { headers }
+    );
+    const reviews = reviewRes.ok ? await reviewRes.json().catch(() => []) : [];
+    const approved = Array.isArray(reviews) ? reviews : [];
+    if (approved.length) {
+      const sum = approved.reduce((acc, row) => acc + Number(row.rating || 0), 0);
+      rating = { average: Math.round((sum / approved.length) * 10) / 10, count: approved.length };
+    }
+    const photoRes = await fetch(
+      `${url}/rest/v1/venue_photos?listing_id=eq.${encodeURIComponent(id)}&status=eq.approved&select=id,image_url,source_url,source_name&order=created_at.asc&limit=3`,
+      { headers }
+    );
+    const photos = photoRes.ok ? await photoRes.json().catch(() => []) : [];
+    official_photos = Array.isArray(photos) ? photos.slice(0, 3) : [];
+  } catch {
+    /* venue-community-migration.sql has not been applied yet */
+  }
+
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
-  res.status(200).json({ listing });
+  res.status(200).json({
+    listing,
+    rating,
+    official_photos,
+    reviewable: canReviewListing({ ...rows[0], status: 'approved' }),
+    roundable: canLogRoundAtListing({ ...rows[0], status: 'approved' })
+  });
 }
