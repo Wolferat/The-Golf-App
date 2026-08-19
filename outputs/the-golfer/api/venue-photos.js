@@ -1,4 +1,4 @@
-import { json, requireAdmin, supabase, writeAudit } from '../lib/admin.js';
+import { json, requireAdmin, requireUser, supabase, writeAudit } from '../lib/admin.js';
 import { runListingAi } from '../lib/ai.js';
 import { isHttpUrl, cleanText } from '../lib/listings.js';
 import {
@@ -6,9 +6,9 @@ import {
   OFFICIAL_VENUE_PHOTO_MAX,
   ADMIN_VENUE_PHOTO_ACTIONS,
   canModerateCommunity,
-  canReviewListing,
-  isOfficialVenuePhoto
+  canReviewListing
 } from '../lib/reviews.js';
+import { verifyOfficialVenuePhoto } from '../lib/official-photos.js';
 
 const PHOTO_SELECT = 'id,listing_id,image_url,source_url,source_name,status,created_at,reviewed_at';
 
@@ -80,12 +80,17 @@ export default async function handler(req, res) {
         return json(res, 200, { photos: (await attachListings(photos || [])).map(publicPhoto) });
       }
       if (!listingId) return json(res, 400, { error: 'Listing id is required.' });
+      if (pending) {
+        const auth = await requireAdmin(req);
+        if (auth.error) return json(res, auth.error.status, auth.error.body);
+      } else {
+        const auth = await requireUser(req);
+        if (auth.error) return json(res, auth.error.status, { ...auth.error.body, gate: true });
+      }
       const listing = await loadListing(listingId);
       if (!listing || listing.status !== 'approved') {
         return json(res, 404, { error: 'That listing is not available.' });
       }
-      const auth = pending ? await requireAdmin(req) : null;
-      if (pending && auth.error) return json(res, auth.error.status, auth.error.body);
       const filter = pending
         ? `listing_id=eq.${encodeURIComponent(listingId)}`
         : `listing_id=eq.${encodeURIComponent(listingId)}&status=eq.approved`;
@@ -119,7 +124,7 @@ export default async function handler(req, res) {
         adminId: auth.profile.id,
         schemaName: 'official_venue_photos',
         schema: VENUE_PHOTO_SCHEMA,
-        input: `Find up to three existing photograph URLs that are hosted on this venue's own official website.
+        input: `Find up to three existing photograph URLs that appear on this venue's own official website.
 Venue JSON: ${JSON.stringify({
           title: listing.title,
           kind: listing.kind,
@@ -129,11 +134,12 @@ Venue JSON: ${JSON.stringify({
         })}
 
 Return JSON only. Rules:
-- Use only the venue's official website (${official}) and files hosted on that same official domain or its subdomain.
-- Never use Google, Bing, map tiles, directories, review platforms, social-media posts, news articles, stock-photo sites, or any other third-party image host.
-- Do not generate, download, copy, or re-host images. Return the remote image URL as it exists on the official site.
+- source_url must be a page on the venue's official website (${official}) or a subdomain of that official site.
+- The image file may be hosted on that official domain/subdomain, or on a legitimate site-builder/CDN used by that official page (for example Wix, Squarespace, or Cloudflare), but only if that official page actually references the image.
+- Never use Google, Bing, map tiles, directories, review platforms, social-media posts, news articles, stock-photo sites, or any other unrelated third-party image host.
+- Do not generate, download, copy, or re-host images. Return the remote image URL as it exists.
 - Every item needs url (the image file), source_url (the official website page that displays it), and source_name.
-- If you cannot verify an official-domain image, return [].
+- If you cannot verify an official-page image, return [].
 - Do not publish anything. These are private proposals for admin review.`
       });
       const existing = await supabase(
@@ -142,6 +148,7 @@ Return JSON only. Rules:
       const have = new Set((existing || []).map((row) => row.image_url));
       const saved = [];
       const omitted = [];
+      const pageCache = new Map();
       for (const photo of parsed.photos || []) {
         if (saved.length >= OFFICIAL_VENUE_PHOTO_MAX) break;
         const image_url = isHttpUrl(photo?.url) ? photo.url : null;
@@ -151,8 +158,15 @@ Return JSON only. Rules:
           omitted.push({ url: photo?.url || null, reason: 'missing_or_duplicate' });
           continue;
         }
-        if (!isOfficialVenuePhoto({ imageUrl: image_url, sourceUrl: source_url, listing })) {
-          omitted.push({ url: image_url, source_url, reason: 'not_official_domain' });
+        let verified;
+        try {
+          verified = await verifyOfficialVenuePhoto({ imageUrl: image_url, sourceUrl: source_url, listing, pageCache });
+        } catch {
+          omitted.push({ url: image_url, source_url, reason: 'verification_failed' });
+          continue;
+        }
+        if (!verified.ok) {
+          omitted.push({ url: image_url, source_url, reason: verified.reason || 'not_official_domain' });
           continue;
         }
         const [row] = await supabase('venue_photos', {
@@ -183,7 +197,7 @@ Return JSON only. Rules:
         omitted,
         message: saved.length
           ? 'Official photo leads were saved as pending. They are not public until you approve them.'
-          : 'No official-domain venue photos could be verified. Nothing was published.'
+          : 'No official venue photos could be verified on the venue website. Nothing was published.'
       });
     }
 
@@ -201,8 +215,18 @@ Return JSON only. Rules:
         });
       }
       const listing = await loadListing(photo.listing_id);
-      if (!isOfficialVenuePhoto({ imageUrl: photo.image_url, sourceUrl: photo.source_url, listing })) {
-        return json(res, 400, { error: 'That photo is not on the venue’s official website domain.' });
+      let verified;
+      try {
+        verified = await verifyOfficialVenuePhoto({
+          imageUrl: photo.image_url,
+          sourceUrl: photo.source_url,
+          listing
+        });
+      } catch {
+        verified = { ok: false };
+      }
+      if (!verified.ok) {
+        return json(res, 400, { error: 'That photo is not verified on the venue’s official website.' });
       }
       const [updated] = await supabase(`venue_photos?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',

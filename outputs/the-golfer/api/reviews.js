@@ -93,13 +93,14 @@ export default async function handler(req, res) {
 
       const listingId = String(req.query.listing_id || req.query.id || '').trim();
       if (!listingId) return json(res, 400, { error: 'Listing id is required.' });
+      const auth = await requireUser(req);
+      if (auth.error) return json(res, auth.error.status, { ...auth.error.body, gate: true });
       const listing = await loadListing(listingId);
       if (!listing || listing.status !== 'approved') {
         return json(res, 404, { error: 'That listing is not available.' });
       }
 
-      const auth = await requireUser(req);
-      const viewer = auth.error ? null : auth.profile;
+      const viewer = auth.profile;
       const approved = await supabase(
         `listing_reviews?listing_id=eq.${encodeURIComponent(listingId)}&status=eq.approved&select=${REVIEW_SELECT}&order=created_at.desc&limit=50`
       );

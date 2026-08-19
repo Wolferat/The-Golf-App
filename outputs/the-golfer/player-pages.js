@@ -90,7 +90,7 @@
     $('#roundDate').value=new Date().toISOString().slice(0,10);
     const sel=$('#roundVenue');
     if(sel&&!sel.dataset.loaded){
-      fetch('/api/listings?kinds=course,simulator').then(r=>r.json()).then(d=>{
+      fetch('/api/listings?kinds=course,simulator',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json()).then(d=>{
         const venues=(d.listings||[]).filter(x=>x.kind==='course'||x.kind==='simulator');
         sel.innerHTML='<option value="">Enter a course name below</option>'+venues.map(v=>`<option value="${escape(v.id)}">${escape(v.title)}${v.city?' · '+escape(v.city):''}</option>`).join('');
         sel.dataset.loaded='1';

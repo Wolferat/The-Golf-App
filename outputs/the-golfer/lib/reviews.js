@@ -1,4 +1,6 @@
 import { isHttpUrl, cleanText } from './listings.js';
+import { parsePublicHttpsUrl } from './safe-fetch.js';
+import { pageReferencesImage } from './page-images.js';
 
 export const REVIEWABLE_KINDS = ['course', 'simulator'];
 export const EVENT_REVIEW_BLOCKED_KINDS = ['tournament', 'training', 'charity', 'corporate'];
@@ -16,7 +18,10 @@ const BLOCKED_PHOTO_HOSTS = [
   'unsplash.com', 'images.unsplash.com', 'shutterstock.com', 'gettyimages.com',
   'flickr.com', 'staticflickr.com', 'wikipedia.org', 'wikimedia.org', 'wikimedia.org',
   'maps.googleapis.com', 'lh3.googleusercontent.com', 'streetviewpixels-pa.googleapis.com',
-  'opentable.com', 'foursquare.com', 'timeout.com', 'nextdoor.com'
+  'opentable.com', 'foursquare.com', 'timeout.com', 'nextdoor.com',
+  'nytimes.com', 'washingtonpost.com', 'cnn.com', 'bbc.com', 'bbc.co.uk',
+  'espn.com', 'reuters.com', 'apnews.com', 'theguardian.com', 'npr.org',
+  'golfdigest.com', 'golfweek.com'
 ];
 
 export function hostnameOf(value) {
@@ -41,15 +46,18 @@ export function officialHostsForListing(listing = {}) {
   return officialWebsite ? [hostnameOf(officialWebsite)].filter(Boolean) : [];
 }
 
-export function isOfficialVenuePhoto({ imageUrl, sourceUrl, listing }) {
-  if (!isHttpUrl(imageUrl) || !isHttpUrl(sourceUrl)) return false;
+export function isOfficialVenuePhoto({ imageUrl, sourceUrl, listing, pageHtml = null }) {
+  if (!parsePublicHttpsUrl(imageUrl) || !parsePublicHttpsUrl(sourceUrl)) return false;
   const imageHost = hostnameOf(imageUrl);
   const sourceHost = hostnameOf(sourceUrl);
   if (!imageHost || !sourceHost) return false;
   if (isBlockedPhotoHost(imageHost) || isBlockedPhotoHost(sourceHost)) return false;
   const officialHosts = officialHostsForListing(listing);
   if (!officialHosts.length) return false;
-  return officialHosts.some((host) => hostMatchesOfficial(imageHost, host) && hostMatchesOfficial(sourceHost, host));
+  if (!officialHosts.some((host) => hostMatchesOfficial(sourceHost, host))) return false;
+  if (officialHosts.some((host) => hostMatchesOfficial(imageHost, host))) return true;
+  if (pageHtml && pageReferencesImage(pageHtml, imageUrl, sourceUrl)) return true;
+  return false;
 }
 
 export function canReviewListing(listing) {

@@ -34,6 +34,19 @@
   if(!id){fail('No listing was requested.');return}
 
   const signInHref='/?login=1&returnTo='+encodeURIComponent(location.pathname+location.search);
+  const signupHref='/?signup=1&returnTo='+encodeURIComponent(location.pathname+location.search);
+  const showGate=()=>{
+    document.title='Sign in · Golfolio';
+    root.innerHTML=`<section class="card">
+      <div class="kicker">Golfolio</div>
+      <h2>Sign in to explore verified golf near you.</h2>
+      <p>Create a free player account to unlock the board.</p>
+      <div class="action-row">
+        <a class="button" href="${escape(signInHref)}">Sign in</a>
+        <a class="button ghost" href="${escape(signupHref)}">Create a free player account</a>
+      </div>
+    </section>`;
+  };
   const accountLink=$('#listingAccount');
   if(accountLink){
     if(session?.access_token){
@@ -44,6 +57,7 @@
       accountLink.href=signInHref;
     }
   }
+  if(!session?.access_token){showGate();return}
 
   const reviewCard=(rv,canEdit)=>{
     const pending=rv.status&&rv.status!=='approved';
@@ -65,8 +79,9 @@
   };
 
   (async()=>{
-    const listingRes=await fetch('/api/listing?id='+encodeURIComponent(id));
+    const listingRes=await fetch('/api/listing?id='+encodeURIComponent(id),{headers:authHeaders()});
     const listingData=await listingRes.json().catch(()=>({}));
+    if(listingRes.status===401||listingData.gate){showGate();return}
     if(!listingRes.ok||!listingData.listing)throw Error(listingData.error||'That listing is not available.');
     const listing=listingData.listing;
     const rating=listingData.rating||{average:null,count:0};
