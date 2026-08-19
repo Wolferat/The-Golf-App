@@ -1,5 +1,5 @@
 import { json, requireAdmin, supabase, writeAudit } from '../lib/admin.js';
-import { LISTING_SELECT, PENDING_QUEUE_MAX, pickListingFields } from '../lib/listings.js';
+import { LISTING_SELECT, PENDING_QUEUE_MAX, pickListingFields, hasOfficialListingSource } from '../lib/listings.js';
 
 async function pendingCount() {
   const rows = await supabase('listings?status=eq.pending&select=id');
@@ -54,6 +54,9 @@ export default async function handler(req, res) {
 
     if (action === 'approve' || action === 'reject') {
       const status = action === 'approve' ? 'approved' : 'rejected';
+      if (status === 'approved' && !hasOfficialListingSource(current)) {
+        return json(res, 400, { error: 'Add an official website or official registration link before publishing this listing.' });
+      }
       const rows = await supabase(`listings?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
@@ -76,6 +79,9 @@ export default async function handler(req, res) {
     if (action === 'restore') {
       if (!['archived', 'expired'].includes(current.status)) {
         return json(res, 400, { error: 'Only archived or expired listings can be restored.' });
+      }
+      if (!hasOfficialListingSource(current)) {
+        return json(res, 400, { error: 'Add an official website or official registration link before restoring this listing.' });
       }
       const rows = await supabase(`listings?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',
@@ -109,6 +115,9 @@ export default async function handler(req, res) {
     if (action === 'update' || req.method === 'PUT' || req.method === 'PATCH') {
       const updates = pickListingFields(req.body?.listing || req.body || {}, { allowStatus: true });
       if (!Object.keys(updates).length) return json(res, 400, { error: 'No listing changes were provided.' });
+      if ((updates.status === 'approved' || current.status === 'approved') && !hasOfficialListingSource({ ...current, ...updates })) {
+        return json(res, 400, { error: 'Approved listings require an official website or official registration link.' });
+      }
       if (updates.status === 'approved' && current.status === 'pending') {
         updates.reviewed_by = profile.id;
         updates.reviewed_at = new Date().toISOString();
