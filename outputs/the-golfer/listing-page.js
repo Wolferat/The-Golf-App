@@ -18,7 +18,8 @@
     return data.listing;
   }).then(listing=>{
     document.title=`${listing.title} · Golfolio`;
-    const site=listing.registration_url||listing.official_website||listing.source_url;
+    const website=listing.official_website;
+    const registration=listing.registration_url&&listing.registration_url!==website?listing.registration_url:null;
     const photos=(listing.photos||[]).filter(x=>x?.url).slice(0,3);
     const reviews=(listing.reviews||[]).filter(x=>x?.excerpt&&x?.source_url).slice(0,3);
     root.innerHTML=`<div class="page-head"><div><div class="kicker">${escape(listing.kind||'Listing')}</div><h1>${escape(listing.title)}</h1><p>${escape(listing.venue_name||listing.city||'Sherman area')}</p></div></div>
@@ -33,8 +34,8 @@
           <div><strong>Phone</strong><p>${listing.phone?`<a href="tel:${escape(listing.phone.replace(/[^\d+]/g,''))}">${escape(listing.phone)}</a>`:'Not verified'}</p></div>
         </div>
         <div class="action-row">
-          ${site?`<a class="button" href="${escape(site)}" target="_blank" rel="noreferrer">Official website / registration</a>`:''}
-          ${listing.source_url?`<a class="button ghost" href="${escape(listing.source_url)}" target="_blank" rel="noreferrer">Source: ${escape(listing.source_name||'Official listing')}</a>`:''}
+          ${website?`<a class="button" href="${escape(website)}" target="_blank" rel="noreferrer">Official website</a>`:''}
+          ${registration?`<a class="button ghost" href="${escape(registration)}" target="_blank" rel="noreferrer">Official registration</a>`:''}
         </div>
         <p class="settings-note">Information is source-backed and may change. Confirm details with the organizer or venue.</p>
       </section>
