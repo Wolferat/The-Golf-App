@@ -371,6 +371,11 @@ assert(home.includes("Authorization:'Bearer '+session.access_token"), 'Home boar
 assert(!home.includes('x.photos'), 'Dashboard cards must not read listings.photos');
 assert(!home.includes('Waiting for approval'), 'Signed-out preview must not use coming-soon copy');
 assert(!home.includes('coming soon') && !home.includes('Coming soon'), 'Signed-out preview must not describe future features');
+assert(home.includes('preview-locked') && home.includes('category-mosaic'), 'Signed-out home must use the compact category preview');
+assert(home.includes('browseAction') && home.includes('See what Golfolio helps you find'), 'Signed-out home must use a browse action instead of faux search');
+assert(!home.includes('search-surface') && !home.includes('locked-card'), 'Signed-out home must not use faux search or repeated locked cards');
+assert(home.includes('site-footer') && home.includes('verified-explainer'), 'Home must include footer and verified explainer');
+assert(!home.includes('Human-verified') && !home.includes('Private location handling'), 'Sherman panel must not show unsupported claims');
 
 const gateSqlPath = join(root, 'supabase/signed-in-data-gate-migration.sql');
 const gateSql = readFileSync(gateSqlPath, 'utf8');
