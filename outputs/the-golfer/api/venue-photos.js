@@ -11,7 +11,7 @@ import {
   canReceiveOfficialVenuePhotos,
   canReviewListing
 } from '../lib/reviews.js';
-import { verifyOfficialVenuePhoto } from '../lib/official-photos.js';
+import { verifyOfficialVenuePhoto, discoverPagePhotos } from '../lib/official-photos.js';
 
 const PHOTO_SELECT = 'id,listing_id,image_url,source_url,source_name,status,created_at,reviewed_at';
 
@@ -89,6 +89,8 @@ Return JSON only. Rules:
 // backfill. Every candidate still passes verifyOfficialVenuePhoto; autoApprove
 // both stage candidates for explicit admin approval.
 async function discoverOfficialPhotos({ listing, adminId }) {
+  const direct=await discoverPagePhotos(listing);
+  if(direct.photos.length)return stageListingPhotos({listing,photos:direct.photos,adminId});
   const parsed = await runListingAi({
     adminId,
     schemaName: 'official_venue_photos',

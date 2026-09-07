@@ -50,6 +50,16 @@ export function extractPageImageUrls(html, baseUrl) {
   for (const match of raw.matchAll(/url\(\s*(['"]?)(https?:\/\/[^'")]+|(?:\/|\.\/)[^'")]+)\1\s*\)/gi)) {
     add(match[2]);
   }
+  // Finalsite encodes responsive image records in data-image-sizes rather than src.
+  for (const match of raw.matchAll(/data-image-sizes\s*=\s*(["'])(.*?)\1/gi)) {
+    try {
+      const sizes=JSON.parse(decodeURIComponent(match[2]));
+      if(Array.isArray(sizes)) {
+        const largest=sizes.filter(x=>x?.url).sort((a,b)=>(Number(b.width)||0)-(Number(a.width)||0))[0];
+        if(largest)add(largest.url);
+      }
+    } catch { /* Ignore malformed site metadata. */ }
+  }
   return found;
 }
 
