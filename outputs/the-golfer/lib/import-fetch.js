@@ -53,3 +53,11 @@ export async function fetchImportResource(url,{allowedHosts=null,maxBytes=350000
   current=new URL(result.redirect,u).href;
  }
 }
+
+// Site-builder HTML includes large embedded layouts; it has a separate budget
+// from downloaded image bytes and optimized stored copies.
+export const OFFICIAL_PAGE_MAX_BYTES=2*1024*1024;
+export async function fetchOfficialPage(url,options={},readResource=fetchImportResource){
+ try{return await readResource(url,{...options,maxBytes:OFFICIAL_PAGE_MAX_BYTES});}
+ catch(error){if(error.code==='too_large')throw importError('source_page_too_large','The official source page exceeds the 2 MB page-reading limit.');throw error;}
+}

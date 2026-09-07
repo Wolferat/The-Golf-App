@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import {parseImportUrl,publicImportAddress} from '../lib/import-fetch.js';
+import {parseImportUrl,publicImportAddress,fetchOfficialPage} from '../lib/import-fetch.js';
 import {normalizeImportedImage,importOfficialPhoto,displayPhotoUrl,importedPhotoPath} from '../lib/imported-photos.js';
 import venuePhotos from '../api/venue-photos.js';
 const id='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
@@ -39,13 +39,13 @@ test('re-encoding rejects active content and corrupt images and strips metadata'
 test('HTTP import verifies exact official reference and stores only optimized bytes in private namespace',async t=>{
  const calls=storage(t);const bytes=await sharp({create:{width:100,height:100,channels:3,background:'green'}}).png().toBuffer();
  const requests=[];const fetchResource=async(url)=>{requests.push(url);return {url,buffer:url===source?Buffer.from('<img src="range.png">'):bytes};};
- await importOfficialPhoto({id,imageUrl:image,sourceUrl:source,listing:{official_website:source},fetchResource});
+ await importOfficialPhoto({id,imageUrl:image,sourceUrl:source,listing:{official_website:source},fetchResource,fetchPage:fetchResource});
  assert.deepEqual(requests,[source,image]);const upload=calls.find(x=>x.path.includes('/object/review-photos/'));assert.match(upload.path,/venue-imports\/aaaaaaaa/);assert.equal(upload.headers['Content-Type'],'image/jpeg');assert.equal((await sharp(upload.body).metadata()).format,'jpeg');
- await assert.rejects(importOfficialPhoto({id,imageUrl:source+'unreferenced.png',sourceUrl:source,listing:{official_website:source},fetchResource}),/not referenced/);
+ await assert.rejects(importOfficialPhoto({id,imageUrl:source+'unreferenced.png',sourceUrl:source,listing:{official_website:source},fetchResource,fetchPage:fetchResource}),/not referenced/);
 });
 test('public storage is refused before upload',async t=>{
  const calls=storage(t,{isPublic:true});const bytes=await sharp({create:{width:10,height:10,channels:3,background:'green'}}).png().toBuffer();
- await assert.rejects(importOfficialPhoto({id,imageUrl:image,sourceUrl:source,listing:{official_website:source},fetchResource:async url=>({url,buffer:url===source?Buffer.from('<img src="range.png">'):bytes})}),/private review-photos/);
+ await assert.rejects(importOfficialPhoto({id,imageUrl:image,sourceUrl:source,listing:{official_website:source},fetchPage:async url=>({url,buffer:Buffer.from('<img src="range.png">')}),fetchResource:async url=>({url,buffer:bytes})}),/private review-photos/);
  assert.equal(calls.some(x=>x.path.includes('/object/')),false);
 });
 test('private image display uses short-lived HTTPS URL and original path cannot escape namespace',async t=>{
@@ -58,4 +58,12 @@ test('players cannot obtain pending imports or their signed URLs',async t=>{
 });
 test('admin review receives secure preview plus original source',async t=>{
  storage(t);const res=await get({listing_id:'listing-a',view:'pending'});assert.equal(res.code,200);assert.match(res.body.photos[0].image_url,/^https:/);assert.equal(res.body.photos[0].original_image_url,image);assert.equal(res.body.photos[0].source_url,source);
+});
+
+test('large site-builder pages use a bounded page budget and page-specific errors',async()=>{
+ const result=await fetchOfficialPage('https://course.example',{},async(url,options)=>{
+  assert.equal(options.maxBytes,2*1024*1024);
+  return {url,buffer:Buffer.alloc(1225422)};
+ });assert.equal(result.buffer.length,1225422);
+ await assert.rejects(fetchOfficialPage('https://course.example',{},async()=>{throw Object.assign(new Error('too large'),{code:'too_large'});}),error=>error.code==='source_page_too_large');
 });

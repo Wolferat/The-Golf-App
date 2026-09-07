@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import {storageUpload,storageSignedUrl,storageRemove,serviceHeaders} from './admin.js';
 import {REVIEW_PHOTO_BUCKET,officialHostsForListing,hostnameOf,isBlockedPhotoHost} from './reviews.js';
 import {extractPageImageUrls} from './page-images.js';
-import {fetchImportResource,parseImportUrl,importError} from './import-fetch.js';
+import {fetchImportResource,fetchOfficialPage,parseImportUrl,importError} from './import-fetch.js';
 
 export const needsPhotoImport=row=>/^http:\/\//i.test(row.image_url||row.url||'')||/^http:\/\//i.test(row.source_url||'');
 export function importedPhotoPath(id){
@@ -18,13 +18,13 @@ export async function normalizeImportedImage(buffer){
  if(output.length>2*1024*1024)throw importError('too_large','The optimized image exceeds 2 MB.');
  return output;
 }
-export async function importOfficialPhoto({id,imageUrl,sourceUrl,listing,pageCache=new Map(),fetchResource=fetchImportResource}){
+export async function importOfficialPhoto({id,imageUrl,sourceUrl,listing,pageCache=new Map(),fetchResource=fetchImportResource,fetchPage=fetchOfficialPage}){
  const hosts=officialHostsForListing(listing);
  if(!hosts.length)throw importError('source_not_official','Save an official website first.');
  parseImportUrl(sourceUrl,hosts);const image=parseImportUrl(imageUrl);
  if(isBlockedPhotoHost(hostnameOf(imageUrl)))throw importError('blocked_host','This image provider is not supported.');
  let page=pageCache.get(sourceUrl);
- if(!page){page=await fetchResource(sourceUrl,{allowedHosts:hosts});pageCache.set(sourceUrl,page);}
+ if(!page){page=await fetchPage(sourceUrl,{allowedHosts:hosts});pageCache.set(sourceUrl,page);}
  // Exact extracted URL, not a filename resemblance, authorizes copying a CDN asset.
  if(!extractPageImageUrls(page.buffer.toString('utf8'),page.url).some(x=>x.href===image.href))throw importError('not_referenced_on_official_page','The image is not referenced by the official page.');
  const file=await fetchResource(image.href,{allowedHosts:[image.hostname],maxBytes:5*1024*1024});

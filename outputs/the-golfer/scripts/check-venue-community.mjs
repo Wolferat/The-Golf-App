@@ -336,7 +336,7 @@ assert(listingApi.includes('requireUser'), 'Listing detail API must require a si
 assert(!listingApi.includes('photos: listing.photos'), 'Listing detail must not expose listings.photos');
 assert(reviewsApi.includes('requireUser(req)'), 'Review reads must require a signed-in session');
 assert(playerApi.includes("if (!user) return json(res, 401"), 'Player data API must require a signed-in session');
-assert(officialPhotos.includes('fetchHttpsText(sourceUrl, { allowedHosts: officialHosts })'), 'Source-page fetch must stay on the official website');
+assert(officialPhotos.includes('fetchOfficialPage(sourceUrl, { allowedHosts: officialHosts })'), 'Source-page fetch must stay on the official website');
 assert(safeFetch.includes("parsed.protocol !== 'https:'"), 'Verification fetch must be HTTPS only');
 assert(safeFetch.includes("redirect: 'manual'"), 'Verification fetch must not follow redirects blindly');
 assert(safeFetch.includes('FETCH_TIMEOUT_MS'), 'Verification fetch must use a short timeout');

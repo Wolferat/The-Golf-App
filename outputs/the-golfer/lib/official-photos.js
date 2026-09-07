@@ -1,5 +1,5 @@
-import {fetchImportResource,parseImportUrl} from './import-fetch.js';
-import { fetchHttpsText, parsePublicHttpsUrl } from './safe-fetch.js';
+import {fetchOfficialPage,parseImportUrl} from './import-fetch.js';
+import { parsePublicHttpsUrl } from './safe-fetch.js';
 import {
   hostnameOf,
   hostMatchesOfficial,
@@ -33,7 +33,7 @@ export async function verifyOfficialVenuePhoto({ imageUrl, sourceUrl, listing, p
     const cacheKey = sourceUrl;
     if (pageCache && pageCache.has(cacheKey)) html = pageCache.get(cacheKey);
     else {
-      html = await fetchHttpsText(sourceUrl, { allowedHosts: officialHosts });
+      html = (await fetchOfficialPage(sourceUrl, { allowedHosts: officialHosts })).buffer.toString('utf8');
       if (pageCache) pageCache.set(cacheKey, html);
     }
   }
@@ -53,12 +53,12 @@ export async function discoverPagePhotos(listing) {
   for(const pageUrl of pages) {
     try {
       let page;
-      try { page=await fetchImportResource(pageUrl,{allowedHosts:hosts}); }
+      try { page=await fetchOfficialPage(pageUrl,{allowedHosts:hosts}); }
       catch(error) {
         // Some older official sites have HTTP content but no valid TLS setup.
         // Fetch HTTP separately; never accept an invalid certificate.
         if(!/^https:/.test(pageUrl)||!['DEPTH_ZERO_SELF_SIGNED_CERT','CERT_HAS_EXPIRED','ERR_TLS_CERT_ALTNAME_INVALID','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN'].includes(error.code))throw error;
-        page=await fetchImportResource(pageUrl.replace(/^https:/,'http:'),{allowedHosts:hosts});
+        page=await fetchOfficialPage(pageUrl.replace(/^https:/,'http:'),{allowedHosts:hosts});
       }
       const source_url=page.url;
       for(const image of extractPageImageUrls(page.buffer.toString('utf8'),source_url)) {
