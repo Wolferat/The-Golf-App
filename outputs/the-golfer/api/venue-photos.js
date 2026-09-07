@@ -1,3 +1,4 @@
+import {displayPhotoUrl,needsPhotoImport,removeImportedPhoto} from '../lib/imported-photos.js';
 import { stageListingPhotos, preparePhotoApproval, approvePreparedPhotos } from '../lib/photo-approval.js';
 import { json, requireAdmin, requireUser, supabase, writeAudit } from '../lib/admin.js';
 import { runListingAi } from '../lib/ai.js';
@@ -43,13 +44,15 @@ async function loadListing(id) {
   return listing || null;
 }
 
-function publicPhoto(row) {
+async function publicPhoto(row) {
   return {
     id: row.id,
     listing_id: row.listing_id,
     listing_title: row.listing_title || null,
     listing_kind: row.listing_kind || null,
-    image_url: row.image_url,
+    image_url: await displayPhotoUrl(row),
+    original_image_url: needsPhotoImport(row) ? row.image_url : null,
+    imported: needsPhotoImport(row),
     source_url: row.source_url,
     source_name: row.source_name || 'Official venue website',
     status: row.status,
@@ -113,6 +116,7 @@ async function attachListings(rows) {
 }
 
 export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
   try {
     if (req.method === 'GET') {
       const listingId = String(req.query.listing_id || req.query.id || '').trim();
@@ -153,7 +157,7 @@ export default async function handler(req, res) {
         const photos = await supabase(
           `venue_photos?status=eq.pending&select=${PHOTO_SELECT}&order=created_at.desc&limit=100`
         );
-        return json(res, 200, { photos: (await attachListings(photos || [])).map(publicPhoto) });
+        return json(res, 200, { photos: await Promise.all((await attachListings(photos || [])).map(publicPhoto)) });
       }
       if (pending) {
         const auth = await requireAdmin(req);
@@ -174,7 +178,7 @@ export default async function handler(req, res) {
         `venue_photos?${filter}&select=${PHOTO_SELECT}&order=created_at.desc&limit=${pending?100:20}`
       );
       const visible = pending ? photos : (photos || []).slice(0, OFFICIAL_VENUE_PHOTO_MAX);
-      return json(res, 200, { photos: (visible || []).map(publicPhoto), listing_id: listingId });
+      return json(res, 200, { photos: await Promise.all((visible || []).map(publicPhoto)), listing_id: listingId });
     }
 
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed.' });
@@ -293,7 +297,7 @@ export default async function handler(req, res) {
       const listing = await loadListing(photo.listing_id);
       let verified;
       try {
-        verified = await verifyOfficialVenuePhoto({
+        verified = needsPhotoImport(photo) ? {ok:Boolean(await displayPhotoUrl(photo))} : await verifyOfficialVenuePhoto({
           imageUrl: photo.image_url,
           sourceUrl: photo.source_url,
           listing
@@ -319,7 +323,7 @@ export default async function handler(req, res) {
         actorId: auth.profile.id,
         details: { photo_id: id }
       });
-      return json(res, 200, { photo: publicPhoto(updated), ok: true });
+      return json(res, 200, { photo: await publicPhoto(updated), ok: true });
     }
 
     if (action === 'reject' || action === 'remove') {
@@ -339,9 +343,10 @@ export default async function handler(req, res) {
           actorId: auth.profile.id,
           details: { photo_id: id }
         });
-        return json(res, 200, { photo: publicPhoto(updated), ok: true });
+        return json(res, 200, { photo: await publicPhoto(updated), ok: true });
       }
       await supabase(`venue_photos?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await removeImportedPhoto(photo);
       await writeAudit({
         listingId: photo.listing_id,
         action: 'venue_photo_remove',

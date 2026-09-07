@@ -5,7 +5,8 @@
     "@capacitor/browser": "8.0.4",
     "@capacitor/core": "8.5.1",
     "@capacitor/geolocation": "8.2.2",
-    "@capacitor/ios": "8.5.1"
+    "@capacitor/ios": "8.5.1",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.1"
@@ -19,6 +20,6 @@
     "preview:design": "node scripts/preview-design.mjs",
     "preview:live": "node scripts/preview-live.mjs",
     "web:build": "node scripts/build-web.mjs",
-    "check:photos": "node --test scripts/photo-approval.test.mjs"
+    "check:photos": "node --test scripts/photo-approval.test.mjs scripts/page-images.test.mjs scripts/imported-photos.test.mjs"
   }
 }

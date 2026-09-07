@@ -2,6 +2,14 @@
 
 Updated September 7, 2026.
 
+## HTTP photo import — implementation September 7, 2026
+
+The user authorized importing official photos from older HTTP-only sites such as Calera Golf Center. The previous direct scanner release is `663638e`, promoted to production. New import code retains original image/source URLs in `venue_photos`; rows with HTTP image/source use a private normalized JPEG at `review-photos/venue-imports/<photo UUID>/photo.jpg`. This namespace cannot match the player-owner storage policy. No schema or bucket-policy changes are required; imports explicitly refuse a public or missing bucket. Only authorized API reads sign the private object for 15 minutes. Gallery, detail and cover endpoints resolve these copies after authorization. Removing the row removes its stored copy; failed row inserts clean up their upload. Existing HTTPS photos stay remote.
+
+Import fetches pin DNS-resolved public addresses, constrain redirects, bound bytes/time, and preserve TLS validation. HTTP is an explicit separate fetch for sites with broken TLS, not certificate bypass. Imported bytes must decode as JPEG/PNG/WebP, have at most 16 million pixels, and are re-encoded to metadata-free JPEG at at most 1600 pixels and 2 MB. Original official-page references are checked exactly. Import does not establish a reuse license; source credit is retained and admin approval remains required. No automatic discovery or approval is enabled.
+
+Calera's daytime range image was fetched and normalized locally (130,331 bytes to 15,215 bytes) without uploading during that check. Use `npm run check:photos` for discovery, moderation, import safety and privacy tests. Release verification and real Calera queue check follow implementation.
+
 ## Photo approval release — live September 7, 2026
 
 The user resumed development here after briefly requesting a Cursor handoff. The photo-approval implementation is being prepared for release on `cursor/venue-community-reviews-20b8`; the local `codex/capacitor-ios` branch tracks it. Open this local repository in Cursor, or select the source branch above in a cloud checkout. Do not use the stale local `cursor/venue-community-reviews-20b8` checkout branch without updating it, and do not use main.

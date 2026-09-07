@@ -1,3 +1,5 @@
+import {randomUUID} from 'node:crypto';
+import {needsPhotoImport,importOfficialPhoto,displayPhotoUrl,removeImportedPhoto} from './imported-photos.js';
 import { supabase } from './admin.js';
 import { verifyOfficialVenuePhoto } from './official-photos.js';
 import { cleanText } from './listings.js';
@@ -8,16 +10,22 @@ export async function stageListingPhotos({listing, photos, adminId}) {
   if (!listing || !['pending','approved'].includes(listing.status)) throw fail('Photos can be reviewed for pending or approved listings.');
   const existing=await supabase(`venue_photos?listing_id=eq.${encodeURIComponent(listing.id)}&select=id,image_url,status`);
   const have=new Map(existing.map(row=>[row.image_url,row.status]));
-  const saved=[],omitted=[],pageCache=new Map();
+  const saved=[],omitted=[],pageCache=new Map(),importPageCache=new Map();
   for(const photo of (Array.isArray(photos)?photos:[]).slice(0,12)) {
     const image_url=photo.url||photo.image_url,source_url=photo.source_url||listing.official_website;
     if(have.has(image_url)){omitted.push({url:image_url,reason:`already_${have.get(image_url)}`});continue;}
     if(existing.filter(row=>row.status==='pending').length+saved.length>=20){omitted.push({url:image_url,reason:'review_queue_full'});continue;}
+    const id=randomUUID();
+    const imported=needsPhotoImport({image_url,source_url});
     let result;
-    try{result=await verifyOfficialVenuePhoto({imageUrl:image_url,sourceUrl:source_url,listing,pageCache});}
-    catch{result={ok:false,reason:'verification_failed'};}
+    try{
+      if(imported){await importOfficialPhoto({id,imageUrl:image_url,sourceUrl:source_url,listing,pageCache:importPageCache});result={ok:true};}
+      else result=await verifyOfficialVenuePhoto({imageUrl:image_url,sourceUrl:source_url,listing,pageCache});
+    } catch(error){result={ok:false,reason:error.code||'verification_failed'};}
     if(!result.ok){omitted.push({url:image_url,source_url,reason:result.reason});continue;}
-    const [row]=await supabase('venue_photos',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({listing_id:listing.id,image_url,source_url,source_name:cleanText(photo.source_name,160)||'Official website',status:'pending',created_by:adminId})});
+    let row;
+    try { [row]=await supabase('venue_photos',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({id,listing_id:listing.id,image_url,source_url,source_name:cleanText(photo.source_name,160)||'Official website',status:'pending',created_by:adminId})});
+    } catch(error){if(imported)await removeImportedPhoto({id,image_url,source_url});throw error;}
     if(row){saved.push(row);have.set(image_url,'pending');}
   }
   return {saved,omitted};
@@ -33,6 +41,10 @@ export async function preparePhotoApproval(listing, ids) {
   const pageCache=new Map();
   for(const row of selected){
     let result;
+    if(needsPhotoImport(row)){
+      if(!await displayPhotoUrl(row))throw fail('The imported image is unavailable. Remove it and import it again.');
+      continue;
+    }
     try{result=await verifyOfficialVenuePhoto({imageUrl:row.image_url,sourceUrl:row.source_url,listing,pageCache});}catch{result={ok:false};}
     if(!result.ok)throw fail('A selected photo could not be verified on the official website. Deselect it or correct its source.');
   }

@@ -1,3 +1,4 @@
+import {displayPhotoUrl} from '../lib/imported-photos.js';
 import { publicListing, KINDS } from '../lib/listings.js';
 import { json, requireUser } from '../lib/admin.js';
 
@@ -18,7 +19,7 @@ async function fetchApproved(url, headers, select, kindFilter = '') {
 async function coverPhotosByListing(url, headers, ids) {
   if (!ids.length) return {};
   const response = await fetch(
-    `${url}/rest/v1/venue_photos?listing_id=in.(${ids.join(',')})&status=eq.approved&select=listing_id,image_url,created_at&order=created_at.asc`,
+    `${url}/rest/v1/venue_photos?listing_id=in.(${ids.join(',')})&status=eq.approved&select=id,listing_id,image_url,source_url,created_at&order=created_at.asc`,
     { headers }
   );
   if (!response.ok) return {};
@@ -26,8 +27,7 @@ async function coverPhotosByListing(url, headers, ids) {
   const first = {};
   for (const row of Array.isArray(rows) ? rows : []) {
     if (!row?.listing_id || !row?.image_url || first[row.listing_id]) continue;
-    if (!/^https:\/\//i.test(row.image_url)) continue;
-    first[row.listing_id] = row.image_url;
+    first[row.listing_id] = await displayPhotoUrl(row);
   }
   return first;
 }

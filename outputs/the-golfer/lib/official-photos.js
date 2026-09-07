@@ -1,3 +1,4 @@
+import {fetchImportResource,parseImportUrl} from './import-fetch.js';
 import { fetchHttpsText, parsePublicHttpsUrl } from './safe-fetch.js';
 import {
   hostnameOf,
@@ -46,22 +47,30 @@ export async function verifyOfficialVenuePhoto({ imageUrl, sourceUrl, listing, p
 export async function discoverPagePhotos(listing) {
   const hosts=officialHostsForListing(listing), photos=[], errors=[], seen=new Set();
   const pages=[...new Set([listing.source_url,listing.official_website].filter(url=>{
-    const parsed=parsePublicHttpsUrl(url);
-    return parsed && hosts.some(host=>hostMatchesOfficial(parsed.hostname,host));
+    try { return Boolean(parseImportUrl(url,hosts)); } catch { return false; }
   }))].slice(0,2);
-  for(const source_url of pages) {
+  if(!hosts.length)return {photos,errors};
+  for(const pageUrl of pages) {
     try {
-      const html=await fetchHttpsText(source_url,{allowedHosts:hosts});
-      for(const image of extractPageImageUrls(html,source_url)) {
-        if(seen.has(image.href)||!parsePublicHttpsUrl(image.href))continue;
+      let page;
+      try { page=await fetchImportResource(pageUrl,{allowedHosts:hosts}); }
+      catch(error) {
+        // Some older official sites have HTTP content but no valid TLS setup.
+        // Fetch HTTP separately; never accept an invalid certificate.
+        if(!/^https:/.test(pageUrl)||!['DEPTH_ZERO_SELF_SIGNED_CERT','CERT_HAS_EXPIRED','ERR_TLS_CERT_ALTNAME_INVALID','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN'].includes(error.code))throw error;
+        page=await fetchImportResource(pageUrl.replace(/^https:/,'http:'),{allowedHosts:hosts});
+      }
+      const source_url=page.url;
+      for(const image of extractPageImageUrls(page.buffer.toString('utf8'),source_url)) {
+        if(seen.has(image.href))continue;
+        try { parseImportUrl(image.href); } catch { continue; }
         if(!/\.(?:jpe?g|png|webp|avif)(?:$|[/?])/i.test(image.path))continue;
         if(/(?:logo|favicon|sprite|icon|tracking|placeholder)/i.test(image.path))continue;
-        const verified=await verifyOfficialVenuePhoto({imageUrl:image.href,sourceUrl:source_url,listing,pageHtml:html});
-        if(!verified.ok)continue;
+        if(isBlockedPhotoHost(image.host))continue;
         seen.add(image.href);photos.push({url:image.href,source_url,source_name:listing.source_name||'Official website'});
         if(photos.length>=12)return {photos,errors};
       }
-    } catch(error) { errors.push({source_url,reason:error.code||'page_fetch_failed'}); }
+    } catch(error) { errors.push({source_url:pageUrl,reason:error.code||'page_fetch_failed'}); }
   }
   return {photos,errors};
 }

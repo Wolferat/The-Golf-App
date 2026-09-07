@@ -1,3 +1,4 @@
+import {displayPhotoUrl} from '../lib/imported-photos.js';
 import { publicListing } from '../lib/listings.js';
 import { json, requireUser } from '../lib/admin.js';
 import { canLogRoundAtListing, canReviewListing } from '../lib/reviews.js';
@@ -65,9 +66,8 @@ export default async function handler(req, res) {
       { headers }
     );
     const photos = photoRes.ok ? await photoRes.json().catch(() => []) : [];
-    official_photos = (Array.isArray(photos) ? photos : [])
-      .filter((row) => /^https:\/\//i.test(row.image_url || ''))
-      .slice(0, 3);
+    official_photos = await Promise.all((Array.isArray(photos) ? photos : []).slice(0,3).map(async row=>({...row,image_url:await displayPhotoUrl(row)})));
+    official_photos=official_photos.filter(row=>row.image_url);
   } catch {
     /* venue-community-migration.sql has not been applied yet */
   }
