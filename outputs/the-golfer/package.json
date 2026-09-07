@@ -18,6 +18,7 @@
     "check:experience": "node --test scripts/experience.test.mjs",
     "preview:design": "node scripts/preview-design.mjs",
     "preview:live": "node scripts/preview-live.mjs",
-    "web:build": "node scripts/build-web.mjs"
+    "web:build": "node scripts/build-web.mjs",
+    "check:photos": "node --test scripts/photo-approval.test.mjs"
   }
 }

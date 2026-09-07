@@ -1,3 +1,4 @@
+import { stageListingPhotos, preparePhotoApproval, approvePreparedPhotos } from '../lib/photo-approval.js';
 import { json, requireAdmin, requireUser, supabase, writeAudit } from '../lib/admin.js';
 import { runListingAi } from '../lib/ai.js';
 import { isHttpUrl, cleanText } from '../lib/listings.js';
@@ -86,62 +87,15 @@ Return JSON only. Rules:
 
 // Shared discovery for both the manual `find` action and the one-time admin
 // backfill. Every candidate still passes verifyOfficialVenuePhoto; autoApprove
-// only decides the stored status, never whether a photo is trusted.
-async function discoverOfficialPhotos({ listing, adminId, autoApprove = false, remainingSlots }) {
+// both stage candidates for explicit admin approval.
+async function discoverOfficialPhotos({ listing, adminId }) {
   const parsed = await runListingAi({
     adminId,
     schemaName: 'official_venue_photos',
     schema: VENUE_PHOTO_SCHEMA,
     input: photoSearchPrompt(listing)
   });
-  const existing = await supabase(
-    `venue_photos?listing_id=eq.${encodeURIComponent(listing.id)}&select=image_url`
-  );
-  const have = new Set((existing || []).map((row) => row.image_url));
-  const limit = Math.max(0, Math.min(OFFICIAL_VENUE_PHOTO_MAX, remainingSlots ?? OFFICIAL_VENUE_PHOTO_MAX));
-  const saved = [];
-  const omitted = [];
-  const pageCache = new Map();
-  const reviewedAt = new Date().toISOString();
-  for (const photo of parsed.photos || []) {
-    if (saved.length >= limit) break;
-    const image_url = isHttpUrl(photo?.url) ? photo.url : null;
-    const source_url = isHttpUrl(photo?.source_url) ? photo.source_url : listing.official_website;
-    const source_name = cleanText(photo?.source_name, 160) || 'Official venue website';
-    if (!image_url || have.has(image_url)) {
-      omitted.push({ url: photo?.url || null, reason: 'missing_or_duplicate' });
-      continue;
-    }
-    let verified;
-    try {
-      verified = await verifyOfficialVenuePhoto({ imageUrl: image_url, sourceUrl: source_url, listing, pageCache });
-    } catch {
-      omitted.push({ url: image_url, source_url, reason: 'verification_failed' });
-      continue;
-    }
-    if (!verified.ok) {
-      omitted.push({ url: image_url, source_url, reason: verified.reason || 'not_official_domain' });
-      continue;
-    }
-    const [row] = await supabase('venue_photos', {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({
-        listing_id: listing.id,
-        image_url,
-        source_url,
-        source_name,
-        status: autoApprove ? 'approved' : 'pending',
-        created_by: adminId,
-        ...(autoApprove ? { reviewed_by: adminId, reviewed_at: reviewedAt } : {})
-      })
-    });
-    if (row) {
-      saved.push(publicPhoto(row));
-      have.add(image_url);
-    }
-  }
-  return { saved, omitted };
+  return stageListingPhotos({listing,photos:parsed.photos,adminId});
 }
 
 async function attachListings(rows) {
@@ -208,14 +162,14 @@ export default async function handler(req, res) {
       }
       if (!listingId) return json(res, 400, { error: 'Listing id is required.' });
       const listing = await loadListing(listingId);
-      if (!listing || listing.status !== 'approved') {
+      if (!listing || (pending ? !['pending','approved'].includes(listing.status) : listing.status !== 'approved')) {
         return json(res, 404, { error: 'That listing is not available.' });
       }
       const filter = pending
         ? `listing_id=eq.${encodeURIComponent(listingId)}`
         : `listing_id=eq.${encodeURIComponent(listingId)}&status=eq.approved`;
       const photos = await supabase(
-        `venue_photos?${filter}&select=${PHOTO_SELECT}&order=created_at.desc&limit=20`
+        `venue_photos?${filter}&select=${PHOTO_SELECT}&order=created_at.desc&limit=${pending?100:20}`
       );
       const visible = pending ? photos : (photos || []).slice(0, OFFICIAL_VENUE_PHOTO_MAX);
       return json(res, 200, { photos: (visible || []).map(publicPhoto), listing_id: listingId });
@@ -232,10 +186,24 @@ export default async function handler(req, res) {
     const action = req.body?.action;
     const listingId = String(req.body?.listing_id || req.body?.id || '').trim();
 
+    if(action==='stage'){
+      const listing=await loadListing(listingId);
+      const result=await stageListingPhotos({listing,photos:req.body.photos,adminId:auth.profile.id});
+      await writeAudit({listingId,action:'venue_photo_stage',actorId:auth.profile.id,details:{saved:result.saved.length,omitted:result.omitted.length}});
+      return json(res,200,result);
+    }
+    if(action==='approve_selection'){
+      const listing=await loadListing(listingId);
+      if(!listing||listing.status!=='approved')return json(res,409,{error:'Use Approve listing with selected photos for a pending listing.'});
+      const ids=await preparePhotoApproval(listing,req.body.photo_ids);
+      await approvePreparedPhotos(listingId,ids,auth.profile.id);
+      await writeAudit({listingId,action:'venue_photo_approve_selection',actorId:auth.profile.id,details:{photo_ids:ids}});
+      return json(res,200,{ok:true});
+    }
     if (action === 'find') {
       const listing = await loadListing(listingId);
-      if (!canReviewListing(listing) || !REVIEWABLE_KINDS.includes(listing.kind)) {
-        return json(res, 400, { error: 'Official venue photos are only for approved courses and simulators.' });
+      if (!listing || !['pending','approved'].includes(listing.status)) {
+        return json(res, 400, { error: 'Photo discovery is available for pending and approved listings.' });
       }
       if (!isHttpUrl(listing.official_website)) {
         return json(res, 400, { error: 'This listing needs an official website before photos can be found.' });
@@ -284,24 +252,23 @@ export default async function handler(req, res) {
       const { saved, omitted } = await discoverOfficialPhotos({
         listing,
         adminId: auth.profile.id,
-        autoApprove: true,
-        remainingSlots: OFFICIAL_VENUE_PHOTO_MAX - already
       });
       await writeAudit({
         listingId: listing.id,
-        action: 'venue_photo_backfill_autoapprove',
+        action: 'venue_photo_backfill_pending',
         actorId: auth.profile.id,
-        details: { approved: saved.length, omitted: omitted.length, already }
+        details: { pending: saved.length, omitted: omitted.length, already }
       });
       return json(res, 200, {
         listing_id: listing.id,
         photos: saved,
         omitted,
-        approved: saved.length,
+        approved: 0,
+        pending: saved.length,
         skipped: saved.length === 0,
         reason: saved.length ? null : 'no_verified_official_photo',
         message: saved.length
-          ? `Approved ${saved.length} verified official photo${saved.length === 1 ? '' : 's'} from the venue website.`
+          ? `Queued ${saved.length} verified official photo${saved.length === 1 ? '' : 's'} from the venue website.`
           : 'Skipped: no photo could be verified on this venue’s official website.'
       });
     }
@@ -311,6 +278,8 @@ export default async function handler(req, res) {
     if (!photo) return json(res, 404, { error: 'Venue photo not found.' });
 
     if (action === 'approve') {
+      const parent=await loadListing(photo.listing_id);
+      if(!parent||parent.status!=='approved')return json(res,409,{error:'Review and approve the parent listing with its photos first.'});
       const approved = await supabase(
         `venue_photos?listing_id=eq.${encodeURIComponent(photo.listing_id)}&status=eq.approved&select=id`
       );

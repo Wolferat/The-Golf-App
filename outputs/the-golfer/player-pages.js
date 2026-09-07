@@ -463,7 +463,7 @@
     };
   };
 
-  const BACKFILL_CONFIRM='This one-time action checks each approved listing’s official website. Only photos verified from that website will be approved automatically. Listings without eligible official photos will be skipped.';
+  const BACKFILL_CONFIRM='This one-time action checks each approved listing’s official website. Verified photo candidates will be queued for your approval. Listings without eligible official photos will be skipped.';
   const mountListings=async()=>{
     const d=await api('?view=me');
     profile=d.profile||{};
@@ -476,9 +476,9 @@
       if(!confirm(BACKFILL_CONFIRM))return;
       backfillRunning=true;backfillStopped=false;
       panel.hidden=false;
-      panel.innerHTML='<div class="kicker">One-time backfill</div><h2>Populate official listing photos</h2><p class="settings-note">Only images verified on each listing’s own official website are approved. Nothing is downloaded or re-hosted.</p><p class="status" id="backfillProgress">Loading approved listings...</p><div class="action-row"><button class="button ghost" id="backfillStop" type="button">Stop</button></div><ul id="backfillLog" class="settings-note"></ul>';
+      panel.innerHTML='<div class="kicker">One-time backfill</div><h2>Populate official listing photos</h2><p class="settings-note">Images verified on each listing’s own official website go to the approval queue. Nothing is downloaded or re-hosted.</p><p class="status" id="backfillProgress">Loading approved listings...</p><div class="action-row"><button class="button ghost" id="backfillStop" type="button">Stop</button></div><ul id="backfillLog" class="settings-note"></ul>';
       const progress=panel.querySelector('#backfillProgress'),log=panel.querySelector('#backfillLog'),stop=panel.querySelector('#backfillStop');
-      stop.onclick=()=>{backfillStopped=true;stop.disabled=true;progress.textContent='Stopping after the current listing. Photos already approved stay approved.'};
+      stop.onclick=()=>{backfillStopped=true;stop.disabled=true;progress.textContent='Stopping after the current listing. Photos already found stay in the review queue.'};
       const summary={checked:0,updated:0,approved:0,skipped:0,failed:0};
       try{
         const r=await fetch('/api/venue-photos?view=backfill_targets',{headers:{Authorization:'Bearer '+session.access_token}});
@@ -496,12 +496,12 @@
             const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'find_and_autoapprove_for_backfill',listing_id:target.id})});
             const x=await resp.json();
             if(!resp.ok)throw Error(x.error||'Request failed.');
-            const added=Number(x.approved||0);
-            if(added>0){summary.updated++;summary.approved+=added;logLine(log,`${target.title}: approved ${added} official photo${added===1?'':'s'}`)}
+            const added=Number(x.pending||0);
+            if(added>0){summary.updated++;summary.approved+=added;logLine(log,`${target.title}: queued ${added} official photo${added===1?'':'s'}`)}
             else{summary.skipped++;logLine(log,`${target.title}: skipped — no verifiable official photo`)}
           }catch(err){summary.failed++;logLine(log,`${target.title}: failed — ${err.message}`)}
         }
-        progress.textContent=`${backfillStopped?'Stopped':'Finished'}. Listings checked ${summary.checked}. Listings updated ${summary.updated}. Photos approved ${summary.approved}. Skipped with no verifiable official photo ${summary.skipped}. Failures ${summary.failed}.`;
+        progress.textContent=`${backfillStopped?'Stopped':'Finished'}. Listings checked ${summary.checked}. Listings updated ${summary.updated}. Photos awaiting approval ${summary.approved}. Skipped with no verifiable official photo ${summary.skipped}. Failures ${summary.failed}.`;
       }catch(err){progress.textContent=err.message}
       finally{backfillRunning=false;if(stop)stop.disabled=true}
     };
@@ -553,7 +553,7 @@
       const ageDays=x=>Math.max(0,Math.floor((Date.now()-new Date(x.created_at).getTime())/86400000));
       const ageLabel=x=>{const days=ageDays(x);return days===0?'Added today':days===1?'Added 1 day ago':`Added ${days} days ago`};
       const dateLabel=x=>{if(!x.starts_at)return 'Event date not set';const days=Math.ceil((new Date(x.starts_at).getTime()-Date.now())/86400000);if(days<0)return `Event passed ${Math.abs(days)} day${Math.abs(days)===1?'':'s'} ago`;if(days===0)return 'Event is today';return `Event in ${days} day${days===1?'':'s'}`};
-      const actions=x=>`<div class="action-row"><a class="button ghost" href="/listings/edit/?id=${encodeURIComponent(x.id)}">Edit listing</a>${x.status==='pending'?`<button class="button" data-id="${escape(x.id)}" data-action="approve">Approve</button><button class="button ghost" data-id="${escape(x.id)}" data-action="reject">Reject</button>`:''}${['approved','pending','rejected'].includes(x.status)?`<button class="button ghost" data-id="${escape(x.id)}" data-action="archive">Archive listing</button>`:''}${['archived','expired'].includes(x.status)?`<button class="button" data-id="${escape(x.id)}" data-action="restore">Restore</button>`:''}<button class="button ghost" data-id="${escape(x.id)}" data-action="research">Research / refresh with AI</button><button class="button ghost" data-id="${escape(x.id)}" data-action="delete">Delete from Golfolio</button></div>`;
+      const actions=x=>`<div class="action-row"><a class="button ghost" href="/listings/edit/?id=${encodeURIComponent(x.id)}">Edit listing</a>${x.status==='pending'?`<a class="button" href="/listings/edit/?id=${encodeURIComponent(x.id)}#photoReview">Review listing &amp; photos</a><button class="button ghost" data-id="${escape(x.id)}" data-action="reject">Reject</button>`:''}${['approved','pending','rejected'].includes(x.status)?`<button class="button ghost" data-id="${escape(x.id)}" data-action="archive">Archive listing</button>`:''}${['archived','expired'].includes(x.status)?`<button class="button" data-id="${escape(x.id)}" data-action="restore">Restore</button>`:''}<button class="button ghost" data-id="${escape(x.id)}" data-action="research">Research / refresh with AI</button><button class="button ghost" data-id="${escape(x.id)}" data-action="delete">Delete from Golfolio</button></div>`;
       const card=x=>`<article class="card"><div class="kicker">${escape(x.status)} · ${escape(x.kind||'Listing')} · ${escape(x.city||'No city')}</div><h2 style="margin-top:8px">${escape(x.title)}</h2><p>${ageLabel(x)} · ${dateLabel(x)}</p><p>${escape(x.venue_name||'Venue not verified')}</p><p>Source: ${escape(x.source_name||'Not provided')}</p>${/^https?:\/\//i.test(x.source_url||'')?`<p><a href="${escape(x.source_url)}" target="_blank" rel="noreferrer">Open source</a></p>`:''}${actions(x)}<p class="status" data-row-status="${escape(x.id)}"></p></article>`;
       body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ${view==='active'?'':'ghost'}" data-view="active">Pending & approved</button><button class="button ${view==='archived'?'':'ghost'}" data-view="archived">Archived / expired</button><button class="button ghost" data-view="community">Community</button><a class="button ghost" href="/company">Manual AI search</a><button class="button ghost" id="backfillPhotos" type="button">Populate official listing photos</button></div><section class="card" id="backfillPanel" hidden></section><section class="stat-grid"><div class="stat"><b>${data.pendingCount??pending.length}</b><span>Pending / ${data.pendingMax||25}</span></div><div class="stat"><b>${approved.length}</b><span>Approved</span></div><div class="stat"><b>${archived.length}</b><span>Archived / expired</span></div></section><section class="settings-stack" style="margin-top:18px">${view==='archived'?`<section class="card"><div class="kicker">Not public</div><h2>Archived / expired</h2>${archived.length?`<div class="players">${archived.map(card).join('')}</div>`:'<p class="settings-note">Nothing is archived or expired.</p>'}</section>`:`<section class="card"><div class="kicker">Needs review</div><h2>Pending approval</h2>${pending.length?`<div class="players">${pending.map(card).join('')}</div>`:'<p class="settings-note">Nothing is waiting for approval.</p>'}</section><section class="card"><div class="kicker">Published</div><h2>Approved listings</h2>${approved.length?`<div class="players">${approved.map(card).join('')}</div>`:'<p class="settings-note">No listings have been approved yet.</p>'}</section>`}</section>`;
       body.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>load(button.dataset.view));
@@ -594,33 +594,27 @@
     const data=await r.json();
     if(!r.ok)throw Error(data.error||'Could not load listing.');
     const listing=data.listing, proposals=data.proposals||[];
-    let venuePhotos=[];
-    if(['course','simulator'].includes(listing.kind)){
-      const vp=await fetch('/api/venue-photos?listing_id='+encodeURIComponent(id)+'&view=pending',{headers:{Authorization:'Bearer '+session.access_token}});
-      const vpData=await vp.json().catch(()=>({}));
-      if(vp.ok)venuePhotos=vpData.photos||[];
-    }
     const wanted=new URLSearchParams(location.search).get('proposal');
     const proposal=proposals.find(x=>x.id===wanted&&x.kind==='enrichment'&&x.status==='pending')||proposals.find(x=>x.kind==='enrichment'&&x.status==='pending');
     const val=x=>x==null?'':String(x);
     const dt=x=>x?new Date(x).toISOString().slice(0,16):'';
     const takeMedia=list=>Array.isArray(list)?list.slice(0,3):[];
-    const photosCurrent=takeMedia(listing.photos);
+    const photosCurrent=[];
     const photosProposed=takeMedia(proposal?.payload?.photos);
     const reviewsCurrent=takeMedia(listing.reviews);
     const reviewsProposed=takeMedia(proposal?.payload?.reviews);
-    const photoMarkup=items=>items.length?`<div class="photo-grid">${items.map(p=>{
+    const photoMarkup=items=>items.length?`<div class="photo-grid">${items.map((p,index)=>{
       const url=/^https?:\/\//i.test(p.url||'')?p.url:'';
-      return `<figure>${url?`<img src="${escape(url)}" alt="" referrerpolicy="no-referrer">`:''}<figcaption>${escape(p.source_name||'Source')}${p.source_url?` · <a href="${escape(p.source_url)}" target="_blank" rel="noreferrer">Source</a>`:''}</figcaption></figure>`;
+      return `<figure><label class="check"><input type="checkbox" data-proposal-photo="${index}"> Send to photo review</label>${url?`<img src="${escape(url)}" alt="" referrerpolicy="no-referrer">`:''}<figcaption>${escape(p.source_name||'Source')}${p.source_url?` · <a href="${escape(p.source_url)}" target="_blank" rel="noreferrer">Source</a>`:''}</figcaption></figure>`;
     }).join('')}</div>`:'<p>—</p>';
     const reviewMarkup=items=>items.length?items.map(r=>`<blockquote class="review-excerpt"><p>${escape(r.excerpt||'')}</p><cite>${escape(r.source_name||'Source')}${r.source_url?` · <a href="${escape(r.source_url)}" target="_blank" rel="noreferrer">Source</a>`:''}</cite></blockquote>`).join(''):'<p>—</p>';
-    const mediaRows=`<div class="compare-row"><strong>Photos (max 3)</strong><div><span class="kicker">Current</span>${photoMarkup(photosCurrent)}</div><div><span class="kicker">Proposed</span>${photoMarkup(photosProposed)}<label class="check"><input type="checkbox" data-apply-field="photos" ${photosProposed.length?'checked':''}> Apply proposed photos</label></div></div><div class="compare-row"><strong>Review excerpts (max 3, 25 words)</strong><div><span class="kicker">Current</span>${reviewMarkup(reviewsCurrent)}</div><div><span class="kicker">Proposed</span>${reviewMarkup(reviewsProposed)}<label class="check"><input type="checkbox" data-apply-field="reviews" ${reviewsProposed.length?'checked':''}> Apply proposed review excerpts</label></div></div>`;
+    const mediaRows=`<div class="compare-row"><strong>Photos (max 3)</strong><div><span class="kicker">Current</span>${photoMarkup(photosCurrent)}</div><div><span class="kicker">Proposed</span>${photoMarkup(photosProposed)}<p class="settings-note">Selected photos enter the approval queue. They are not published by applying research.</p></div></div><div class="compare-row"><strong>Review excerpts (max 3, 25 words)</strong><div><span class="kicker">Current</span>${reviewMarkup(reviewsCurrent)}</div><div><span class="kicker">Proposed</span>${reviewMarkup(reviewsProposed)}<label class="check"><input type="checkbox" data-apply-field="reviews" ${reviewsProposed.length?'checked':''}> Apply proposed review excerpts</label></div></div>`;
     $('#pageBody').innerHTML=`<p class="settings-note"><a href="/listings">Back to listings</a></p>
       <section class="card"><div class="kicker">${escape(listing.status)} · ${escape(listing.kind)}</div><h2>Edit listing</h2>
       <form class="form" id="editForm">
         <label for="editTitle">Title</label><input id="editTitle" required maxlength="200" value="${escape(listing.title)}">
         <label for="editKind">Listing type</label><select id="editKind">${['tournament','course','training','simulator','charity','corporate'].map(k=>`<option value="${k}" ${listing.kind===k?'selected':''}>${k}</option>`).join('')}</select>
-        <label for="editStatus">Status</label><select id="editStatus">${['pending','approved','rejected'].map(k=>`<option value="${k}" ${listing.status===k?'selected':''}>${k}</option>`).join('')}</select>
+        <label for="editStatus">Status</label><select id="editStatus">${(listing.status==='approved'?['pending','approved','rejected']:['pending','rejected']).map(k=>`<option value="${k}" ${listing.status===k?'selected':''}>${k}</option>`).join('')}</select>
         <label for="editDescription">Description</label><textarea id="editDescription" maxlength="2000" rows="4">${escape(listing.description||'')}</textarea>
         <label for="editVenue">Course / venue name</label><input id="editVenue" maxlength="200" value="${escape(listing.venue_name||'')}">
         <label for="editCity">City</label><input id="editCity" maxlength="120" value="${escape(listing.city||'')}">
@@ -633,18 +627,20 @@
         <label for="editStarts">Start date/time</label><input id="editStarts" type="datetime-local" value="${dt(listing.starts_at)}">
         <label for="editEnds">End date/time</label><input id="editEnds" type="datetime-local" value="${dt(listing.ends_at)}">
         <label for="editPrice">Fees / pricing note</label><input id="editPrice" maxlength="300" value="${escape(listing.price_note||'')}">
-        <label for="editPhotos">Photos JSON (max 3: url, source_url, source_name)</label><textarea id="editPhotos" rows="4">${escape(JSON.stringify(listing.photos||[],null,2))}</textarea>
+        <p class="settings-note">Manage photos in the photo approval checklist below.</p>
         <label for="editReviews">Review excerpts JSON (max 3, 25 words, each with source_url)</label><textarea id="editReviews" rows="4">${escape(JSON.stringify(listing.reviews||[],null,2))}</textarea>
         <div class="action-row"><button class="button" type="submit">Save listing</button><button class="button ghost" type="button" id="archiveBtn">Archive listing</button><button class="button ghost" type="button" id="deleteBtn">Delete from Golfolio</button></div>
         <p class="status" id="editStatusNote"></p>
       </form></section>
-      ${['course','simulator'].includes(listing.kind)?`<section class="card" style="margin-top:18px"><div class="kicker">Official venue photos</div><h2>From the official website only</h2><p class="settings-note">These are remote image URLs from the venue’s own website. Golfolio does not download or re-host them. Imports stay pending until you approve them. Maximum three public photos. Player review photos stay on the review, not here.</p>${venuePhotos.length?venuePhotos.map(p=>`<article class="review-card"><img class="review-photo" src="${escape(p.image_url)}" alt="" referrerpolicy="no-referrer"><p>${escape(p.status)} · <a href="${escape(p.source_url)}" target="_blank" rel="noreferrer">${escape(p.source_name||'Official site')}</a></p><div class="action-row">${p.status!=='approved'?`<button class="button" data-photo-action="approve" data-id="${escape(p.id)}">Approve</button>`:''}<button class="button ghost" data-photo-action="reject" data-id="${escape(p.id)}">Reject</button><button class="button ghost" data-photo-action="remove" data-id="${escape(p.id)}">Remove</button></div></article>`).join(''):'<p class="settings-note">No official photo imports yet.</p>'}${listing.status==='approved'?`<div class="action-row"><button class="button" type="button" id="findOfficialPhotos">Find official venue photos</button></div><p class="status" id="officialPhotoStatus"></p>`:'<p class="settings-note">Approve the listing before searching for official photos.</p>'}</section>`:''}
+      <section class="card" id="photoReview" style="margin-top:18px"></section>
       <section class="card" style="margin-top:18px"><div class="kicker">AI research</div><h2>Before / after proposal</h2>
       ${proposal?`<p class="settings-note">Private proposal from ${new Date(proposal.created_at).toLocaleString()}. Public data is unchanged until you apply selected fields, photos, or review excerpts.</p>
         <div class="compare-grid">${Object.keys(fieldLabel).map(key=>{const current=listing[key]??'';const next=proposal.payload?.fields?.[key]?.value??'';const src=proposal.payload?.fields?.[key];return `<div class="compare-row"><strong>${fieldLabel[key]}</strong><div><span class="kicker">Current</span><p>${escape(val(current))||'—'}</p></div><div><span class="kicker">Proposed</span><p>${escape(val(next))||'—'}</p>${src?.source_url?`<p><a href="${escape(src.source_url)}" target="_blank" rel="noreferrer">${escape(src.source_name||'Source')}</a> · ${escape(src.evidence||'')}</p>`:''}<label class="check"><input type="checkbox" data-apply-field="${key}" ${next&&String(next)!==String(current)?'checked':''}> Apply this field</label></div></div>`}).join('')}${mediaRows}</div>
         <div class="action-row"><button class="button" id="applySelected">Apply selected verified fields</button><button class="button ghost" id="applyAll">Apply all verified fields</button><button class="button ghost" id="rejectProposal">Reject proposal</button></div>
         <p class="status" id="proposalStatus"></p>`:'<p class="settings-note">No pending research proposal. Use Research / refresh with AI from Listings.</p>'}
       </section>`;
+    $('#editForm').addEventListener('input',()=>{$('#editForm').dataset.dirty='true';});
+    await window.golfolioPhotoReview($('#photoReview'),listing,session);
     const parseJson=(el,fallback)=>{try{return JSON.parse(el.value||'[]')}catch{throw Error(fallback)}};
     $('#editForm').onsubmit=async e=>{
       e.preventDefault();
@@ -657,11 +653,12 @@
           official_website:$('#editWebsite').value.trim(), registration_url:$('#editRegister').value.trim(),
           source_name:$('#editSourceName').value.trim(), source_url:$('#editSourceUrl').value.trim(),
           starts_at:$('#editStarts').value||null, ends_at:$('#editEnds').value||null, price_note:$('#editPrice').value.trim(),
-          photos:parseJson($('#editPhotos'),'Photos JSON is invalid.'), reviews:parseJson($('#editReviews'),'Reviews JSON is invalid.')
+          reviews:parseJson($('#editReviews'),'Reviews JSON is invalid.')
         };
         const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:'update',listing:listingPayload})});
         const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Save failed.');
-        s.textContent='Listing saved. Public pages only show approved active listings.';
+        s.textContent='Listing details saved. Review photos below before publishing.';
+        $('#editForm').dataset.dirty='false';Object.assign(listing,x.listing||listingPayload);await window.golfolioPhotoReview($('#photoReview'),listing,session);
       }catch(err){s.textContent=err.message}
     };
     $('#archiveBtn').onclick=async()=>{
@@ -674,41 +671,19 @@
       const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:'delete',confirm:true})});
       const x=await resp.json(); if(!resp.ok){$('#editStatusNote').textContent=x.error;return} window.golfolioNavigate('/listings');
     };
-    const findOfficial=$('#findOfficialPhotos');
-    if(findOfficial){
-      findOfficial.onclick=async()=>{
-        const s=$('#officialPhotoStatus');
-        findOfficial.disabled=true;
-        s.textContent='Searching the official venue website...';
-        try{
-          const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'find',listing_id:id})});
-          const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Could not find official photos.');
-          s.textContent=x.message||'Saved as pending.';
-          setTimeout(()=>location.reload(),800);
-        }catch(err){s.textContent=err.message;findOfficial.disabled=false}
-      };
-    }
-    document.querySelectorAll('[data-photo-action]').forEach(button=>button.onclick=async()=>{
-      button.disabled=true;
-      try{
-        const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:button.dataset.id,action:button.dataset.photoAction})});
-        const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
-        location.reload();
-      }catch(err){button.disabled=false;alert(err.message)}
-    });
     if(proposal){
       const apply=async(fields)=>{
         const s=$('#proposalStatus'); s.textContent='Applying selected fields...';
         try{
-          const resp=await fetch('/api/proposals',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:proposal.id,action:'apply',fields,photos:fields.includes('photos'),reviews:fields.includes('reviews')})});
+          const resp=await fetch('/api/proposals',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:proposal.id,action:'apply',fields,photos:document.querySelectorAll('[data-proposal-photo]:checked').length>0,photo_indices:[...document.querySelectorAll('[data-proposal-photo]:checked')].map(el=>Number(el.dataset.proposalPhoto)),reviews:fields.includes('reviews')})});
           const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Apply failed.');
-          s.textContent='Applied. Reloading...'; location.reload();
+          sessionStorage.setItem('golfolio_photo_review_notice_'+id,(x.message||'Applied.')+' '+(x.photoReview?.omitted||[]).map(p=>(p.url||'Image')+': '+p.reason).join(' '));location.reload();
         }catch(err){s.textContent=err.message}
       };
       $('#applySelected').onclick=()=>apply([...document.querySelectorAll('[data-apply-field]:checked')].map(x=>x.dataset.applyField));
       $('#applyAll').onclick=()=>{
         const keys=Object.keys(fieldLabel);
-        if(photosProposed.length)keys.push('photos');
+
         if(reviewsProposed.length)keys.push('reviews');
         apply(keys);
       };

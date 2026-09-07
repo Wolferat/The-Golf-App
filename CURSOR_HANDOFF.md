@@ -2,6 +2,20 @@
 
 Updated September 7, 2026.
 
+## Photo approval implementation — release in progress
+
+The user resumed development here after briefly requesting a Cursor handoff. The photo-approval implementation is being prepared for release on `cursor/venue-community-reviews-20b8`; the local `codex/capacitor-ios` branch tracks it. Open this local repository in Cursor, or select the source branch above in a cloud checkout. Do not use the stale local `cursor/venue-community-reviews-20b8` checkout branch without updating it, and do not use main.
+
+**Production still runs the earlier design refresh described below. The new photo-approval workflow has not been promoted to production or installed on the physical iPhone.** GitHub pushes trigger a Vercel Preview; production promotion is separate. Native assets have been regenerated with `npm run ios:sync`.
+
+Implemented: AI research photos and bulk discovery enter the existing private `venue_photos` review queue; manual official image/source URLs can be added; pending listings of every kind support photo discovery; the listing editor provides photo selection and explicit publication with or without selected photos. Approved photos use the existing covers/gallery pipeline. Old one-click listing publication is replaced with a review link, and the API requires explicit photo-review acknowledgment. The legacy bulk action name remains for compatibility but no longer auto-approves. Skipped-source and duplicate reasons are displayed. Existing researched `listings.photos` can be imported into review explicitly. No records were populated or approved during development.
+
+Key files: `lib/photo-approval.js`, `photo-review.js`, `api/admin.js`, `api/proposals.js`, `api/venue-photos.js`, `player-pages.js`, and `scripts/photo-approval.test.mjs` under the app directory.
+
+Latest verification: 11 photo-approval tests, 7 experience tests, 3 mobile tests, venue-community checks, web build, iOS sync, and whitespace checks passed. API tests use isolated in-memory fixtures, not live credentials or real AI calls. An isolated mobile-layout preview verified the empty photo review form and error feedback. Full candidate-grid visual QA and a staging end-to-end approval remain to be completed before production promotion. Port 8767 proxies to the existing production API, so it cannot validate the new backend until that backend is deployed; use a configured staging environment for mutation checks.
+
+Known implementation limits to review: listing publication and selected-photo approval are separate database writes. A photo-write failure explicitly reports that the listing saved while photos remain pending and can be retried; there is no database transaction. The three-photo maximum is checked before writes and is not a distributed concurrency lock. Review these behaviors before broad multi-admin use. No SQL migration was run. Editable AI settings, source preferences, configurable photo limits, Google content integration, and JavaScript-rendered gallery discovery are still future work; this change focused on photo approval.
+
 ## Current source and deployment
 
 Open `/Users/howlingsolutions/Documents/Codex/The-Golf-App`. The app lives in `outputs/the-golfer`.

@@ -1,3 +1,4 @@
+import { preparePhotoApproval, approvePreparedPhotos } from '../lib/photo-approval.js';
 import { json, requireAdmin, supabase, writeAudit } from '../lib/admin.js';
 import { LISTING_SELECT, PENDING_QUEUE_MAX, pickListingFields, hasOfficialListingSource } from '../lib/listings.js';
 
@@ -57,11 +58,13 @@ export default async function handler(req, res) {
       if (status === 'approved' && !hasOfficialListingSource(current)) {
         return json(res, 400, { error: 'Add an official website or official registration link before publishing this listing.' });
       }
+      const photoIds = status === 'approved' ? await reviewPhotos(current, req.body) : [];
       const rows = await supabase(`listings?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ status, reviewed_by: profile.id, reviewed_at: new Date().toISOString() })
       });
+      await finishPhotos(id, photoIds, profile.id);
       await writeAudit({ listingId: id, action, actorId: profile.id, details: { from: current.status, to: status } });
       return json(res, 200, { listing: rows[0], ok: true });
     }
@@ -114,6 +117,9 @@ export default async function handler(req, res) {
 
     if (action === 'update' || req.method === 'PUT' || req.method === 'PATCH') {
       const updates = pickListingFields(req.body?.listing || req.body || {}, { allowStatus: true });
+      delete updates.photos; // Photo decisions use the reviewed gallery, never the legacy JSON field.
+      const publishing = updates.status === 'approved' && current.status !== 'approved';
+      const photoIds = publishing ? await reviewPhotos({...current,...updates},req.body) : [];
       if (!Object.keys(updates).length) return json(res, 400, { error: 'No listing changes were provided.' });
       if ((updates.status === 'approved' || current.status === 'approved') && !hasOfficialListingSource({ ...current, ...updates })) {
         return json(res, 400, { error: 'Approved listings require an official website or official registration link.' });
@@ -127,6 +133,7 @@ export default async function handler(req, res) {
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify(updates)
       });
+      await finishPhotos(id, photoIds, profile.id);
       await writeAudit({ listingId: id, action: 'update', actorId: profile.id, details: { fields: Object.keys(updates) } });
       return json(res, 200, { listing: rows[0], ok: true });
     }
@@ -135,4 +142,12 @@ export default async function handler(req, res) {
   } catch (error) {
     return json(res, error.status || 500, { error: error.message || 'Admin listing request failed.' });
   }
+}
+
+async function reviewPhotos(listing,body){
+  if(body?.photo_reviewed!==true)throw Object.assign(new Error('Review the listing photos before publishing. Open Review listing & photos.'),{status:409});
+  return preparePhotoApproval(listing,body.photo_ids||[]);
+}
+async function finishPhotos(id,ids,adminId){
+  try{await approvePreparedPhotos(id,ids,adminId);}catch{throw Object.assign(new Error('The listing was saved, but photo approval did not finish. Reopen the photo review and approve your selection again.'),{status:502});}
 }

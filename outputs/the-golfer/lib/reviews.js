@@ -85,10 +85,12 @@ export function canModerateCommunity(profile) {
 
 export const ADMIN_REVIEW_ACTIONS = ['approve', 'reject', 'approve_photo', 'reject_photo'];
 
-// One-time admin backfill only. The normal `find` action always stays pending.
+// Legacy action name retained for older clients. All discovery now stays pending.
 export const BACKFILL_VENUE_PHOTO_ACTION = 'find_and_autoapprove_for_backfill';
 export const ADMIN_VENUE_PHOTO_ACTIONS = [
   'find',
+  'stage',
+  'approve_selection',
   BACKFILL_VENUE_PHOTO_ACTION,
   'approve',
   'reject',

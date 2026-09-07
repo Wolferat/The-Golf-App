@@ -1,3 +1,4 @@
+import { stageListingPhotos } from '../lib/photo-approval.js';
 import { json, requireAdmin, supabase, writeAudit } from '../lib/admin.js';
 import { PENDING_QUEUE_MAX, leadToListing, pickListingFields, cleanPhotos, cleanReviews, cleanText, isHttpUrl, normalizeBetaArea, withinBetaArea, parseCoordinate, DEFAULT_BETA_AREA } from '../lib/listings.js';
 
@@ -135,7 +136,7 @@ export default async function handler(req, res) {
         return json(res, 400, { error: 'This proposal is not an enrichment for an existing listing.' });
       }
       const fields = proposal.payload?.fields || {};
-      const requested = Array.isArray(req.body?.fields) && req.body.fields.length
+      const requested = Array.isArray(req.body?.fields)
         ? req.body.fields
         : Object.keys(fields);
       const patch = {};
@@ -153,20 +154,29 @@ export default async function handler(req, res) {
         }
       }
       if (req.body?.photos === true && Array.isArray(proposal.payload?.photos) && proposal.payload.photos.length) {
-        patch.photos = proposal.payload.photos;
+        const indices=req.body.photo_indices;
+        if(indices!==undefined&&(!Array.isArray(indices)||indices.some(i=>!Number.isInteger(i)||i<0||i>=proposal.payload.photos.length)))return json(res,400,{error:'Invalid photo selection.'});
+        patch.photos = indices===undefined?proposal.payload.photos:indices.map(i=>proposal.payload.photos[i]);
       }
       if (req.body?.reviews === true && Array.isArray(proposal.payload?.reviews) && proposal.payload.reviews.length) {
         patch.reviews = proposal.payload.reviews;
       }
-      const updates = pickListingFields({ ...patch, field_sources: sources }, { allowStatus: false });
-      if (patch.photos) updates.photos = cleanPhotos(proposal.payload.photos.filter((x) => isHttpUrl(x.url)));
+      const [current]=await supabase(`listings?id=eq.${encodeURIComponent(proposal.listing_id)}&select=*`);
+      if (!current) return json(res,404,{error:"Listing not found."});
+      const updates = pickListingFields({ ...patch, photos: undefined }, { allowStatus: false });
+      if(Object.keys(sources).length) updates.field_sources={...(current.field_sources||{}),...sources};
+      delete updates.photos;
+      let photoReview={saved:[],omitted:[]};
+      if(patch.photos?.length){
+        photoReview=await stageListingPhotos({listing:{...current,...updates},photos:patch.photos,adminId:auth.profile.id});
+      }
       if (patch.reviews) updates.reviews = cleanReviews(proposal.payload.reviews.filter((x) => cleanText(x.excerpt, 400)));
-      if (!Object.keys(updates).length) return json(res, 400, { error: 'No verified fields were selected to apply.' });
-      const rows = await supabase(`listings?id=eq.${encodeURIComponent(proposal.listing_id)}`, {
+      if (!Object.keys(updates).length && !patch.photos?.length) return json(res, 400, { error: 'No verified fields were selected to apply.' });
+      const rows = Object.keys(updates).length ? await supabase(`listings?id=eq.${encodeURIComponent(proposal.listing_id)}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify(updates)
-      });
+      }) : [];
       await supabase(`listing_proposals?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=minimal' },
@@ -183,7 +193,7 @@ export default async function handler(req, res) {
         actorId: auth.profile.id,
         details: { fields: Object.keys(updates) }
       });
-      return json(res, 200, { listing: rows[0], ok: true });
+      return json(res, 200, { listing: rows[0], photoReview, message:'Selected fields applied. Photo candidates require approval in the photo review.', ok: true });
     }
 
     return json(res, 400, { error: 'Unknown proposal action.' });

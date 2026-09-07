@@ -419,44 +419,12 @@ assert(
 
 assert(venueApi.includes('action === BACKFILL_VENUE_PHOTO_ACTION'), 'Backfill must be a dedicated explicit action');
 assert(venueApi.includes('canReceiveOfficialVenuePhotos'), 'Backfill must check official-website eligibility');
-assert(
-  venueApi.includes("status: autoApprove ? 'approved' : 'pending'"),
-  'Only the explicit backfill flag may approve a venue photo on insert'
-);
-assert(venueApi.includes('autoApprove: false'), 'The normal find action must stay pending for manual review');
-assert(venueApi.includes('autoApprove: true'), 'The backfill action must request auto-approval explicitly');
-assert(
-  venueApi.indexOf('autoApprove: false') < venueApi.indexOf('autoApprove: true'),
-  'The manual find action must remain the non-approving default path'
-);
-assert(
-  venueApi.includes('verifyOfficialVenuePhoto({ imageUrl: image_url, sourceUrl: source_url, listing, pageCache })'),
-  'Every backfilled photo must pass official-site verification before it is stored'
-);
-assert(
-  !/autoApprove[\s\S]{0,400}verified\.ok/.test(venueApi) || venueApi.includes('if (!verified.ok) {'),
-  'Auto-approval must not bypass the verification result'
-);
-assert(
-  venueApi.includes('remainingSlots: OFFICIAL_VENUE_PHOTO_MAX - already'),
-  'Backfill must respect the maximum approved official photos per listing'
-);
-assert(
-  venueApi.includes("reason: 'already_full'"),
-  'Listings already at the official-photo maximum must be skipped'
-);
-assert(
-  venueApi.includes('Math.min(OFFICIAL_VENUE_PHOTO_MAX, remainingSlots'),
-  'Backfill inserts must stay within the official photo maximum'
-);
-assert(
-  venueApi.includes('have.has(image_url)'),
-  'Backfill must not duplicate or overwrite an existing official photo'
-);
-assert(
-  !venueApi.includes("status: 'approved', reviewed_by") || venueApi.includes('autoApprove'),
-  'Approved status must only come from an admin-reviewed or explicit backfill path'
-);
+const photoApproval = readFileSync(join(root, 'lib/photo-approval.js'), 'utf8');
+assert(photoApproval.includes("status:'pending'"), 'Photo discovery must insert pending candidates');
+assert(!venueApi.includes('autoApprove: true'), 'Bulk discovery must not auto-approve photos');
+assert(photoApproval.includes('verifyOfficialVenuePhoto'), 'Staging must verify official sources');
+assert(photoApproval.includes('have.has(image_url)'), 'Staging must not duplicate an existing photo');
+assert(venueApi.includes("reason: 'already_full'"), 'Full galleries must be skipped by bulk discovery');
 assert(OFFICIAL_VENUE_PHOTO_MAX === 3, 'Official venue photos stay capped at three per listing');
 
 assert(adminPages.includes('Populate official listing photos'), 'Admin Listings must expose the one-time backfill tool');
@@ -591,7 +559,7 @@ console.log('- Official venue photos may use a referenced CDN, but not an unrefe
 console.log('- Listing, review, venue-photo, and player APIs require a signed-in session.');
 console.log('- Anonymous public-read RLS policies are replaced by authenticated-only policies.');
 console.log('- The official photo backfill is admin-only, explicit, capped at three photos, and never a cron.');
-console.log('- Manual find still stores pending photos; only the backfill action approves verified official images.');
+console.log('- Manual find still stores pending photos; bulk discovery also requires photo approval.');
 console.log(restProbe.includes('probed')
   ? '- Live anon-key REST probes returned no usable listing/review/photo/round rows.'
   : '- Live anon-key REST probes skipped (SUPABASE_URL / SUPABASE_ANON_KEY not set in this environment).');

@@ -177,3 +177,11 @@ body.signed-in .site-footer { padding-bottom:130px; }
 .golf-ball { container-type:inline-size; }
 .golf-ball-logo { position:absolute; z-index:1; left:0; top:43%; width:100%; color:#17241c; text-align:center; font:400 17cqi/1 Georgia,'Times New Roman',serif; letter-spacing:-.055em; transform:rotate(-9deg); text-shadow:0 1px 1px #fff4; pointer-events:none; }
 .kind-filters-wrap { top:0; background:linear-gradient(180deg,#101312fa 75%,#10131200); }
+
+.approval-photo-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:18px; margin-top:22px; }
+.approval-photo { padding:16px; border:1px solid var(--line); border-radius:16px; min-width:0; }
+.approval-photo img { display:block; width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:10px; }
+.approval-photo p,.photo-review-status { overflow-wrap:anywhere; }
+.approval-photo .button { margin-top:12px; }
+.photo-source-form { margin-top:24px; }
+.photo-source-form label input { display:block; width:100%; margin-top:8px; }
