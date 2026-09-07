@@ -48,7 +48,7 @@
       hero.classList.add('has-fallback');
       const title=hero.dataset.fallbackTitle||'Golfolio';
       const initials=escape(venueInitials(title));
-      img.replaceWith(`<div class="listing-hero-fallback" aria-hidden="true"><span class="hero-initials">${initials}</span><span class="hero-kind-badge" aria-hidden="true">${escape(kindLabel(hero.dataset.fallbackKind))}</span></div>`);
+      img.outerHTML = `<div class="listing-hero-fallback golf-art" aria-label="Golf illustration"><span class="golf-art-flag"></span><span class="golf-art-label">MAKE TIME FOR GOLF</span></div>`;
     };
   };
 
@@ -139,7 +139,7 @@
     const scheduleCopy=[when(listing.starts_at),when(listing.ends_at)].filter(Boolean).join(' – ');
     const heroMedia=heroPhoto
       ? `<img class="listing-hero-img" src="${escape(heroPhoto.image_url)}" alt="${escape(listing.title)}" loading="eager" referrerpolicy="no-referrer">`
-      : `<div class="listing-hero-fallback" aria-hidden="true"><span class="hero-initials">${escape(venueInitials(listing.title||listing.venue_name))}</span><span class="hero-kind-badge" aria-hidden="true">${escape(kindLabel(listing.kind))}</span></div>`;
+      : `<div class="listing-hero-fallback golf-art" aria-label="Golf illustration"><span class="golf-art-flag"></span><span class="golf-art-label">MAKE TIME FOR GOLF</span></div>`;
 
     root.innerHTML=`<article class="listing-detail listing-page">
       <div class="listing-hero ${heroPhoto?'has-photo':'has-fallback'}" data-fallback-title="${escape(listing.title)}" data-fallback-kind="${escape(listing.kind||'course')}">

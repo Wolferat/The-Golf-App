@@ -61,11 +61,11 @@ export async function discoverPagePhotos(listing) {
         page=await fetchOfficialPage(pageUrl.replace(/^https:/,'http:'),{allowedHosts:hosts});
       }
       const source_url=page.url;
-      for(const image of extractPageImageUrls(page.buffer.toString('utf8'),source_url)) {
+      for(const image of extractPageImageUrls(page.buffer.toString('utf8'),source_url).sort((a,b)=>Number(/logo/i.test(a.path))-Number(/logo/i.test(b.path)))) {
         if(seen.has(image.href))continue;
         try { parseImportUrl(image.href); } catch { continue; }
         if(!/\.(?:jpe?g|png|webp|avif)(?:$|[/?])/i.test(image.path))continue;
-        if(/(?:logo|favicon|sprite|icon|tracking|placeholder)/i.test(image.path))continue;
+        if(/(?:favicon|sprite|icon|tracking|placeholder)/i.test(image.path))continue;
         if(isBlockedPhotoHost(image.host))continue;
         seen.add(image.href);photos.push({url:image.href,source_url,source_name:hostnameOf(source_url)||'Official website'});
         if(photos.length>=12)return {photos,errors};

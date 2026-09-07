@@ -185,3 +185,11 @@ body.signed-in .site-footer { padding-bottom:130px; }
 .approval-photo .button { margin-top:12px; }
 .photo-source-form { margin-top:24px; }
 .photo-source-form label input { display:block; width:100%; margin-top:8px; }
+
+/* Intentional golf illustration when a venue has no approved image. */
+.golf-art { position:relative; overflow:hidden; isolation:isolate; background:radial-gradient(ellipse at 70% 0%,#647268 0,transparent 50%),linear-gradient(145deg,#28312d,#111916)!important; }
+.golf-art::before { content:""; position:absolute; width:140%; height:100%; top:55%; left:-20%; border-radius:50%; transform:rotate(-12deg); background:repeating-linear-gradient(90deg,#35443b 0 28px,#303e35 28px 56px); box-shadow:0 -1px 0 #8b998344; z-index:-1; }
+.golf-art-flag { position:absolute; height:44%; width:2px; background:#eae5d7; bottom:27%; left:62%; box-shadow:1px 0 2px #0006; }
+.golf-art-flag::before { content:""; position:absolute; top:0; left:2px; width:38px; height:23px; background:#ded6be; clip-path:polygon(0 0,100% 30%,0 100%); }
+.golf-art-flag::after { content:""; position:absolute; width:30px; height:7px; border-radius:50%; background:#0b1410; bottom:-4px; left:-14px; z-index:-1; }
+.golf-art-label { position:absolute; left:20px; top:22px; max-width:45%; text-align:left; font:500 10px/1.8 system-ui,sans-serif; letter-spacing:.22em; color:#eee8da; }
