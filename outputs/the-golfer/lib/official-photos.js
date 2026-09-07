@@ -67,7 +67,7 @@ export async function discoverPagePhotos(listing) {
         if(!/\.(?:jpe?g|png|webp|avif)(?:$|[/?])/i.test(image.path))continue;
         if(/(?:logo|favicon|sprite|icon|tracking|placeholder)/i.test(image.path))continue;
         if(isBlockedPhotoHost(image.host))continue;
-        seen.add(image.href);photos.push({url:image.href,source_url,source_name:listing.source_name||'Official website'});
+        seen.add(image.href);photos.push({url:image.href,source_url,source_name:hostnameOf(source_url)||'Official website'});
         if(photos.length>=12)return {photos,errors};
       }
     } catch(error) { errors.push({source_url:pageUrl,reason:error.code||'page_fetch_failed'}); }
