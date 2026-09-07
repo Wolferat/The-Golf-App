@@ -2,13 +2,13 @@
 
 Updated September 7, 2026.
 
-## HTTP photo import — implementation September 7, 2026
+## HTTP photo import — live and verified September 7, 2026
 
 The user authorized importing official photos from older HTTP-only sites such as Calera Golf Center. The previous direct scanner release is `663638e`, promoted to production. New import code retains original image/source URLs in `venue_photos`; rows with HTTP image/source use a private normalized JPEG at `review-photos/venue-imports/<photo UUID>/photo.jpg`. This namespace cannot match the player-owner storage policy. No schema or bucket-policy changes are required; imports explicitly refuse a public or missing bucket. Only authorized API reads sign the private object for 15 minutes. Gallery, detail and cover endpoints resolve these copies after authorization. Removing the row removes its stored copy; failed row inserts clean up their upload. Existing HTTPS photos stay remote.
 
 Import fetches pin DNS-resolved public addresses, constrain redirects, bound bytes/time, and preserve TLS validation. HTTP is an explicit separate fetch for sites with broken TLS, not certificate bypass. Imported bytes must decode as JPEG/PNG/WebP, have at most 16 million pixels, and are re-encoded to metadata-free JPEG at at most 1600 pixels and 2 MB. Original official-page references are checked exactly. Import does not establish a reuse license; source credit is retained and admin approval remains required. No automatic discovery or approval is enabled.
 
-Calera's daytime range image was fetched and normalized locally (130,331 bytes to 15,215 bytes) without uploading during that check. Use `npm run check:photos` for discovery, moderation, import safety and privacy tests. Release verification and real Calera queue check follow implementation.
+Calera's daytime range image was fetched and normalized locally (130,331 bytes to 15,215 bytes) without uploading during that check. Use `npm run check:photos` for discovery, moderation, import safety and privacy tests. Release `89fa462dbd41743d63e4ca2c9d4b56fc11ef3f1b` is live; Vercel production deployment `4DKn9JPGDXqqt3fAQ1JouoXSZ1cp` is Ready. All 20 client files match local; config 200, signed-out listings/photo APIs 401, server library 404. Thirty automated tests passed (20 photo/discovery/import, 7 experience, 3 mobile); production dependency audit reports zero vulnerabilities. Native assets synced and Xcode reports Running App on Trent Wolfe. In the signed-in live Calera editor (`dbf3e3a6-643f-420e-a2c8-85e07f55f3cc`), Find photos imported 7 real source images, all pending and none selected/approved. Visual QA confirmed the private HTTPS previews load, including the range and equipment shed. Source credits correctly show caleragolfcenter.com. Some candidates are logos/portraits; admin selects the relevant photos. No new listings or published photos were added.
 
 ## Photo approval release — live September 7, 2026
 
