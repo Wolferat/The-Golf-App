@@ -1,0 +1,12 @@
+/* Only included in the packaged iPhone app. Keep controls below system UI. */
+.app-header,
+.top {
+  padding-top: env(safe-area-inset-top, 0px);
+  min-height: calc(64px + env(safe-area-inset-top, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+@media (max-width: 760px) {
+  .app-header,
+  .top { min-height: calc(58px + env(safe-area-inset-top, 0px)); }
+}

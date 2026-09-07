@@ -1,0 +1,10 @@
+# Native projects and local tooling are versioned but are not web assets.
+ios/
+mobile/
+mobile-dist/
+scripts/*.test.mjs
+scripts/preview-*.mjs
+scripts/build-mobile.mjs
+scripts/check-venue-community.mjs
+*.md
+capacitor.config.json
