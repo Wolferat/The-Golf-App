@@ -1,0 +1,11 @@
+{
+  "appId": "com.whackfuckgolf.golfolio",
+  "appName": "Golfolio",
+  "webDir": "mobile-dist",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  },
+  "backgroundColor": "#101312"
+}

@@ -149,7 +149,7 @@
           <h1>${escape(listing.title)}</h1>
           <div class="listing-hero-meta">
             ${verifiedBadge}
-            <p class="listing-hero-sub">${escape(listing.venue_name||listing.city||'Sherman area')}</p>
+            <p class="listing-hero-sub">${escape(listing.venue_name||listing.city||'Location not provided')}</p>
           </div>
           <p class="rating-line">${rating.count?stars(Math.round(rating.average)):''} ${escape(ratingLabel)}</p>
         </div>
@@ -162,7 +162,7 @@
             ${listing.description?`<p class="lead">${escape(listing.description)}</p>`:'<p class="settings-note">A public description has not been verified yet.</p>'}
             <div class="detail-grid">
               <div><strong>Venue</strong><p>${escape(listing.venue_name||'Not verified')}</p></div>
-              <div><strong>City</strong><p>${escape(listing.city||'Sherman area')}</p></div>
+              <div><strong>City</strong><p>${escape(listing.city||'Location not provided')}</p></div>
               <div><strong>Address</strong><p>${escape(listing.address||'Not verified')}</p></div>
               <div><strong>Schedule</strong><p>${escape(scheduleCopy||'Date not verified')}</p></div>
               <div><strong>Pricing</strong><p>${escape(listing.price_note||'See the official website or registration page for pricing.')}</p></div>
@@ -217,7 +217,7 @@
             ${directionsUrl?`<a class="button ghost" href="${escape(directionsUrl)}" target="_blank" rel="noreferrer">Directions</a>`:''}
           </div>
           ${!website&&!registration?'<p class="settings-note">Official website and registration links have not been verified yet.</p>':''}
-          <p class="plan-note">${escape(listing.address||listing.city||'Sherman area')}${listing.phone?` · ${escape(listing.phone)}`:''}</p>
+          <p class="plan-note">${escape(listing.address||listing.city||'Location not provided')}${listing.phone?` · ${escape(listing.phone)}`:''}</p>
         </aside>
       </div>
     </article>`;

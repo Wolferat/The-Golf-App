@@ -45,30 +45,27 @@
       }
       menu.innerHTML=`<span class="menu-note">Signed in as ${escape(name)}</span><a href="/">Home</a><a href="/hub">My game</a><a href="/players">Find players</a><a href="/settings">Settings</a>${p?.role==='admin'?'<a href="/company">Company settings</a><a href="/listings">Listings</a>':''}<button type="button" id="menuSignOut">Sign out</button>`;
       menu.classList.toggle('hidden');
-      $('#menuSignOut').onclick=()=>{localStorage.removeItem('golfolio_session');location.assign('/')};
+      $('#menuSignOut').onclick=()=>{localStorage.removeItem('golfolio_session');window.golfolioNavigate('/')};
     };
   };
 
-  const menuStyle=document.createElement('style');
-  menuStyle.textContent='.top-actions{position:relative}.account-menu{position:absolute;top:52px;right:0;z-index:8;width:232px;padding:10px;border:1px solid #e2e8df;border-radius:17px;background:#fff;box-shadow:0 18px 45px rgba(5,27,17,.2)}.account-menu.hidden{display:none}.account-menu .menu-note{display:block;padding:7px 12px 12px;color:#65776d;font:11px/1.3 DM Mono,monospace}.account-menu a,.account-menu button{display:block;width:100%;padding:11px 12px;border:0;border-radius:10px;background:transparent;color:#102c22;font:800 14px DM Sans,sans-serif;text-align:left;text-decoration:none}.account-menu a:hover,.account-menu button:hover{background:#e6f6e9}';
-  document.head.append(menuStyle);
+
 
   const headerAccount=$('#signOut');
   if(headerAccount)headerAccount.textContent='Account';
 
-  const homeTheme=document.createElement('style');
-  homeTheme.textContent=`:root{--ink:#102c22;--forest:#0b2119;--green:#178357;--green-dark:#0f6241;--lime:#d8f7a2;--gold:#e7b542;--cream:#f6f5ef;--paper:#fbfbf7;--line:#e2e8df;--muted:#65776d;--white:#fff;--shadow:0 18px 55px rgba(15,48,35,.10)}body{background:var(--paper);letter-spacing:-.01em}.top{min-height:76px;padding:0 max(28px,calc((100% - 1280px)/2));background:rgba(11,33,25,.98);border-bottom:1px solid rgba(216,247,162,.14)}.brand{font-family:'Playfair Display',Georgia,serif;font-size:28px;letter-spacing:-1.4px}.top-note{font-size:13px;font-weight:500;color:#c6d5ca}.button{min-height:44px;padding:11px 18px;border-radius:999px;transition:transform .18s ease,background .18s ease,box-shadow .18s ease}.button.light{border-color:rgba(255,255,255,.35)}.button.ghost{border-color:#d5e7d9;background:#edf5ef;color:var(--green)}.shell{max-width:1280px;padding:62px 28px 90px}.page-head{margin-bottom:25px}.page-head h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(44px,5.2vw,66px);font-weight:600;letter-spacing:-.055em}.page-head p{font-size:16px;line-height:1.6}.kicker{font-family:'DM Mono',monospace}.card{border-color:var(--line);border-radius:22px;box-shadow:0 8px 24px rgba(17,54,36,.045)}.card.dark{background:linear-gradient(115deg,#0c2b20,#174b35)}.card h2{font-family:'Playfair Display',Georgia,serif;letter-spacing:-.045em}.stat{background:#f2f7f1}.hole-switch{background:#eff4ef}.round-note{background:#f2f7f1}.mobile-nav{display:none;border-color:rgba(224,232,222,.9);background:rgba(255,255,255,.94);box-shadow:0 13px 35px rgba(7,28,18,.18)}.settings-stack{display:grid;gap:18px}.settings-stack .card h2{margin-bottom:6px}.settings-note{margin:8px 0 0;color:var(--muted);font-size:14px;line-height:1.55}.toggle-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--line)}.toggle-row:first-of-type{border-top:0;padding-top:8px}.toggle-row strong{display:block;font-size:15px}.toggle-row span{display:block;margin-top:4px;color:var(--muted);font-size:13px;line-height:1.45}.switch{position:relative;display:inline-flex;width:48px;height:28px;flex:0 0 auto}.switch input{opacity:0;width:0;height:0}.switch span{position:absolute;inset:0;border-radius:999px;background:#d5e1d7;transition:.18s ease}.switch span:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(7,28,18,.2);transition:.18s ease}.switch input:checked+span{background:var(--green)}.switch input:checked+span:before{transform:translateX(20px)}.category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.category-grid label{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fcfdfb;font-size:14px}.privacy-pill{display:inline-flex;margin-left:8px;padding:3px 8px;border-radius:999px;background:#eaf5e9;color:var(--green);font:500 10px/1 DM Mono,monospace;letter-spacing:.04em;text-transform:uppercase}.privacy-pill.private{background:#f3f0e4;color:#6f5d2d}@media(max-width:1024px){body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px))}.mobile-nav{position:fixed;z-index:15;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:6px;border:1px solid rgba(224,232,222,.9);border-radius:19px;background:rgba(255,255,255,.96);box-shadow:0 13px 35px rgba(7,28,18,.18);backdrop-filter:blur(14px)}.mobile-nav a{display:grid;gap:3px;place-items:center;min-height:53px;border-radius:13px;color:var(--muted);font:700 11px/1.1 DM Sans,sans-serif;text-decoration:none}.mobile-nav a:hover,.mobile-nav a.active{background:#eef5ee;color:var(--green)}.mobile-nav .nav-icon{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.mobile-nav .nav-label{font:700 11px/1.1 DM Sans,sans-serif!important}}@media(max-width:760px){.top{min-height:66px;padding-inline:20px}.brand{font-size:24px}.shell{padding:44px 20px 76px}.page-head h1{font-size:42px}.card{padding:23px;border-radius:20px}.category-grid{grid-template-columns:1fr}}`;
-  document.head.append(homeTheme);
 
-  const home=()=>location.assign('/');
+
+  const home=()=>window.golfolioNavigate('/');
   const fail=e=>{$('#pageBody').innerHTML=`<section class="notice"><strong>We could not load this page.</strong><br>${escape(e.message)}<br><br><button class="button" id="backHome">Back to home</button></section>`;$('#backHome').onclick=home};
 
   const mountGame=async()=>{
     const d=await api('?view=me');
     profile=d.profile||{};
-    $('#pageBody').innerHTML=`<div class="grid"><section class="card dark"><div class="kicker" style="color:#d8f7a2">Your scorecard</div><h2>Play your game.</h2><p>Log a round after the course. Your stats only use rounds you add—nothing is estimated.</p><div class="action-row"><button class="button" id="logRound">Log a round</button><a class="button ghost" href="/settings">Settings</a></div></section><section class="card"><div class="kicker">Season snapshot</div><div class="stat-grid"><div class="stat"><b>${d.stats?.rounds??'-'}</b><span>Rounds</span></div><div class="stat"><b>${d.stats?.average??'-'}</b><span>18-hole avg</span></div><div class="stat"><b>${d.stats?.best??'-'}</b><span>Best score</span></div></div></section></div><section class="card history"><h2>Round history</h2>${d.rounds?.length?d.rounds.map(r=>`<div class="round"><div><strong>${escape(r.course_name)}</strong><small>${new Date(r.played_on+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} · ${r.holes} holes${r.par?' · Par '+r.par:''}</small></div><div class="score">${r.score}<small>${r.visibility==='private'?'Private':escape(r.visibility)}</small></div></div>`).join(''):`<div class="empty"><h2>Your scorecard starts here.</h2><p>Log your first round to see your real scoring average and personal best.</p></div>`}</section>`;
+    $('#pageBody').innerHTML=`<div class="grid"><section class="card dark"><div class="kicker" >Your scorecard</div><h2>Every round.<br>A little more you.</h2><p>Your rounds, remembered. Keep a score when you want to, and let your history tell the story.</p><div class="action-row"><button class="button" id="logRound">Log a round</button><a class="button ghost" href="/settings">Settings</a></div></section><section class="card"><div class="kicker">Season snapshot</div><div class="stat-grid"><div class="stat"><b>${d.stats?.rounds??'-'}</b><span>Rounds</span></div><div class="stat"><b>${d.stats?.average??'-'}</b><span>18-hole avg</span></div><div class="stat"><b>${d.stats?.best??'-'}</b><span>Best score</span></div></div></section></div><section class="card history"><h2>Round history</h2>${d.rounds?.length?d.rounds.map(r=>`<div class="round"><div><strong>${escape(r.course_name)}</strong><small>${new Date(r.played_on+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} · ${r.holes} holes${r.par?' · Par '+r.par:''}</small></div><div class="score">${r.score}<small>${r.visibility==='private'?'Private':escape(r.visibility)}</small></div></div>`).join(''):`<div class="empty"><h2>Your story starts on the course.</h2><p>Log your first round to see your real scoring average and personal best.</p></div>`}</section>`;
     $('#pageTitle').textContent=profile.username||'My game';
     $('#logRound').onclick=()=>openRound();
+    if(new URLSearchParams(location.search).get('log')==='1')openRound();
   };
 
   const openRound=()=>{
@@ -143,7 +140,7 @@
         <section class="card">
           <div class="kicker">Email and account</div>
           <h2>Email</h2>
-          <p class="settings-note">Email changes go through Supabase Auth verification. Your current email stays active until you confirm the new one.</p>
+          <p class="settings-note">Your current email stays active until you verify the new address.</p>
           <form class="form" id="emailForm">
             <label>Current email</label>
             <input value="${escape(data.email||'')}" disabled>
@@ -161,7 +158,7 @@
           <h2>What you want to hear about</h2>
           <p class="settings-note">These choices are saved now for Golfolio’s future notification system. Nothing is sent yet.</p>
           <form id="notifyForm">
-            ${toggleRow('notifyNearby','Verified events near me','Approved tournaments, courses, and training in the Sherman golf area.',s.notify_nearby_events)}
+            ${toggleRow('notifyNearby','Verified events near me','Approved tournaments, courses, and training near you.',s.notify_nearby_events)}
             ${toggleRow('notifyFollowed','Saved / followed golf activity','Updates related to players and golf you choose to follow.',s.notify_followed_activity)}
             ${toggleRow('notifyProduct','Golfolio product updates','Occasional product notes about Golfolio itself.',s.notify_product_updates)}
             <div class="action-row"><button class="button" type="submit">Save notification choices</button></div>
@@ -203,8 +200,8 @@
 
         <section class="card">
           <div class="kicker">Data / security</div>
-          <h2>How your settings are stored</h2>
-          <p class="settings-note">Settings live in your private <code>user_settings</code> row in Supabase. Row Level Security limits read/write to your own account. Service-role keys never ship to the browser.</p>
+          <h2>Your information stays yours</h2>
+          <p class="settings-note">Your settings are private to your account. You choose what to share with other golfers.</p>
         </section>
       </div>`;
 
@@ -574,7 +571,7 @@
             note.textContent='Researching official sources...';
             const resp=await fetch('/api/ai',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'research',id})});
             const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Research failed.');
-            location.assign('/listings/edit/?id='+encodeURIComponent(id)+'&proposal='+encodeURIComponent(x.proposal.id));
+            window.golfolioNavigate('/listings/edit/?id='+encodeURIComponent(id)+'&proposal='+encodeURIComponent(x.proposal.id));
             return;
           }
           const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action,confirm:action==='delete'?true:undefined})});
@@ -670,12 +667,12 @@
     $('#archiveBtn').onclick=async()=>{
       if(!confirm('Archive this listing? It will leave public Home and detail pages immediately.'))return;
       const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:'archive'})});
-      const x=await resp.json(); if(!resp.ok){$('#editStatusNote').textContent=x.error;return} location.assign('/listings');
+      const x=await resp.json(); if(!resp.ok){$('#editStatusNote').textContent=x.error;return} window.golfolioNavigate('/listings');
     };
     $('#deleteBtn').onclick=async()=>{
       if(!confirm('Delete this listing from Golfolio? This extra confirmation is required. The listing will be hidden (status deleted). The database record is not erased.'))return;
       const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:'delete',confirm:true})});
-      const x=await resp.json(); if(!resp.ok){$('#editStatusNote').textContent=x.error;return} location.assign('/listings');
+      const x=await resp.json(); if(!resp.ok){$('#editStatusNote').textContent=x.error;return} window.golfolioNavigate('/listings');
     };
     const findOfficial=$('#findOfficialPhotos');
     if(findOfficial){
@@ -717,7 +714,7 @@
       };
       $('#rejectProposal').onclick=async()=>{
         const resp=await fetch('/api/proposals',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:proposal.id,action:'reject'})});
-        const x=await resp.json(); if(!resp.ok){$('#proposalStatus').textContent=x.error;return} location.assign('/listings/edit/?id='+encodeURIComponent(id));
+        const x=await resp.json(); if(!resp.ok){$('#proposalStatus').textContent=x.error;return} window.golfolioNavigate('/listings/edit/?id='+encodeURIComponent(id));
       };
     }
   };
@@ -732,12 +729,10 @@
       snapshot.querySelectorAll('[data-hole]').forEach(button=>button.onclick=()=>drawStats(button.dataset.hole));
     };
     drawStats('eighteen');
-    history.innerHTML=`<h2>Round history</h2>${d.rounds?.length?d.rounds.map(r=>`<div class="round"><div><strong>${escape(r.course_name)}</strong><small>${new Date(r.played_on+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} · ${r.holes} holes${r.par?' · Par '+r.par:''}</small>${r.notes?`<p class="round-note">${escape(r.notes)}</p>`:''}</div><div class="score">${r.score}<small>${r.visibility==='private'?'Private':escape(r.visibility)}</small></div></div>`).join(''):`<div class="empty"><h2>Your scorecard starts here.</h2><p>Log your first round to see your real scoring average and personal best.</p></div>`}`;
+    history.innerHTML=`<h2>Round history</h2>${d.rounds?.length?d.rounds.map(r=>`<div class="round"><div><strong>${escape(r.course_name)}</strong><small>${new Date(r.played_on+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} · ${r.holes} holes${r.par?' · Par '+r.par:''}</small>${r.notes?`<p class="round-note">${escape(r.notes)}</p>`:''}</div><div class="score">${r.score}<small>${r.visibility==='private'?'Private':escape(r.visibility)}</small></div></div>`).join(''):`<div class="empty"><h2>Your story starts on the course.</h2><p>Log your first round to see your real scoring average and personal best.</p></div>`}`;
   };
 
-  const gameStyle=document.createElement('style');
-  gameStyle.textContent='.hole-switch{display:flex;gap:6px;margin:16px 0 4px;padding:4px;border-radius:999px;background:#eff4ef}.hole-switch button{flex:1;border:0;border-radius:999px;background:transparent;color:#65776d;padding:8px 10px;font-weight:800}.hole-switch button.active{background:#fff;color:#102c22;box-shadow:0 2px 8px rgba(15,48,35,.1)}.round-totals{margin:16px 0 0!important;padding-top:13px;border-top:1px solid #e2e8df;font-size:12px!important}.round-note{max-width:500px;margin:8px 0 0!important;padding:9px 11px;border-radius:10px;background:#f2f7f1;color:#315643!important;font-size:13px!important}';
-  document.head.append(gameStyle);
+
 
   const roundClose=$('#roundClose'),roundForm=$('#roundForm');
   if(roundClose)roundClose.onclick=()=>$('#roundDialog').hidden=true;

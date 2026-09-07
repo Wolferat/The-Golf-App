@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Golfolio helps golfers around Sherman, Texas find verified courses, tournaments, training, simulators, charity, and corporate events.">
-  <title>Golfolio · Golf around Sherman</title>
+  <meta name="description" content="Golfolio helps golfers find verified courses, tournaments, training, simulators, charity, and corporate events.">
+  <title>Golfolio · Make time for golf</title>
   <link rel="stylesheet" href="/explore-home.css">
   <script>
     (function () {
@@ -15,7 +15,7 @@
       document.documentElement.className = mode;
     })();
   </script>
-</head>
+<link rel="stylesheet" href="/clubhouse.css"><link rel="stylesheet" href="/homepage.css"><meta name="theme-color" content="#101312"><script src="/experience.js"></script></head>
 <body data-page="home" class="signed-out">
   <script>document.body.className = document.documentElement.className;</script>
   <header class="app-header">
@@ -26,30 +26,25 @@
     </div>
     <div class="header-spacer" aria-hidden="true"></div>
     <div class="top-actions">
-      <small id="memberState" class="header-tagline">Verified golf near Sherman.</small>
+      <small id="memberState" class="header-tagline">Your next round starts here.</small>
       <button class="button ghost-top header-signin" id="accountButton" type="button">Sign in</button>
-      <button class="button alt" id="signupButton" type="button" aria-label="Create account"><span class="signup-label-desktop">Create account</span><span class="signup-label-mobile" aria-hidden="true">Join free</span></button>
+      <button class="button alt" id="signupButton" type="button" aria-label="Create account"><span class="signup-label-desktop">Create account</span><span class="signup-label-mobile" aria-hidden="true">Create account</span></button>
       <div id="accountMenu" class="account-menu hidden"></div>
     </div>
   </header>
 
-  <section class="explore-open" aria-label="Explore golf">
+  <section class="explore-open" aria-label="Explore golf"><div class="home-photo" id="homePhoto" hidden aria-hidden="true"></div>
     <div class="explore-shell">
       <div class="explore-layout">
         <div class="explore-main">
-          <h1>Where do you want to play?</h1>
-          <p class="lead">Discover verified courses, tournaments, coaching, simulators, and indoor golf in the Sherman golf area.</p>
+          <p class="home-eyebrow">THE GAME. YOUR WAY.</p><h1>Make time<br>for golf.</h1>
+          <p class="lead">A quiet nine. A round with friends. A conversation beyond the office. Your next round starts here.</p>
           <div class="hero-actions">
-            <button type="button" class="browse-action" id="browseAction">See what Golfolio helps you find</button>
-            <button type="button" class="button gold near-me-button" id="nearMeButton" hidden>Near me</button>
+            <button type="button" class="browse-action" id="browseAction">Explore local golf</button>
+            <button type="button" class="button gold near-me-button" id="nearMeButton" hidden>Use my location</button>
           </div>
         </div>
-        <aside class="area-panel" aria-label="Sherman service area">
-          <p class="area-kicker">Serving the Sherman area</p>
-          <h2 id="areaPanelTitle">Golf around Sherman</h2>
-          <p class="area-lead" id="areaPanelLead">Verified listings in the Sherman golf area.</p>
-          <p class="area-detail" id="areaPanelRadius">30-mile service area centered on Sherman, Texas</p>
-        </aside>
+        <div class="hero-object" aria-hidden="true"><div class="golf-ball" data-golf-ball></div><div class="ball-shadow"></div><span class="object-caption">A little closer to the game.</span></div>
       </div>
     </div>
   </section>
@@ -58,7 +53,7 @@
     <div class="discovery-panel">
       <div class="board-head">
         <div>
-          <h2 id="boardTitle">Explore nearby.</h2>
+          <h2 id="boardTitle">Find your next round</h2>
           <p class="copy" id="boardCopy">Sign in to explore verified golf near you.</p>
         </div>
         <div class="location" id="locationBar">
@@ -68,11 +63,11 @@
       </div>
       <div class="kind-filters-wrap">
         <nav class="kind-filters" id="kindFilters" aria-label="Listing categories">
-          <button type="button" class="kind-filter active" data-kind="all">All</button>
+          <button type="button" class="kind-filter active" data-kind="all">All golf</button>
           <button type="button" class="kind-filter" data-kind="course">Courses</button>
           <button type="button" class="kind-filter" data-kind="tournament">Tournaments</button>
           <button type="button" class="kind-filter" data-kind="simulator">Simulators</button>
-          <button type="button" class="kind-filter" data-kind="training">Training</button>
+          <button type="button" class="kind-filter" data-kind="training">Lessons</button>
           <button type="button" class="kind-filter" data-kind="charity">Charity</button>
           <button type="button" class="kind-filter" data-kind="corporate">Corporate</button>
         </nav>
@@ -81,29 +76,33 @@
         <article class="card empty-state">
           <div class="cat-badge" aria-hidden="true"><svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 21V4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6 5.2c3.2-1.6 6.2.6 9.4-1 0 4.2-3 5.4-9.4 5.4V5.2Z" fill="currentColor" opacity=".9"/><path d="M5 21h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
           <h3>Tournaments</h3>
-          <p class="empty-copy">No verified tournaments are on the board.</p>
+          <p class="empty-copy">No verified tournaments are listed in this view yet.</p>
         </article>
         <article class="card empty-state">
           <div class="cat-badge" aria-hidden="true"><svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="7.5" cy="16.5" r="2.2" fill="currentColor"/><path d="M9.2 15.2 16 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 5.5c1.8-.2 3.4.9 3.6 2.5.3 1.8-1.4 2.8-3.1 2.4L14.2 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20.2h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".45"/></svg></div>
           <h3>Courses</h3>
-          <p class="empty-copy">No verified courses are on the board.</p>
+          <p class="empty-copy">No courses in this view yet. Try another filter.</p>
         </article>
         <article class="card empty-state">
           <div class="cat-badge" aria-hidden="true"><svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="4.6" stroke="currentColor" stroke-width="1.5" opacity=".7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 3.8v2.2M20.2 12h-2.2M12 20.2v-2.2M3.8 12h2.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
           <h3>Training &amp; simulators</h3>
-          <p class="empty-copy">No verified training or simulator listings are on the board.</p>
+          <p class="empty-copy">No sessions here yet. Check back for more ways to swing.</p>
         </article>
       </section>
       <section id="listingBoard" class="listing-grid" aria-label="Explore nearby"></section>
     </div>
   </div>
 
+  <section class="home-optional" aria-labelledby="optional-heading">
+    <div><p class="home-eyebrow">YOUR GAME, YOUR CHOICE</p><h2 id="optional-heading">Enjoy the round.<br>Keep the score if you want to.</h2></div>
+    <div><p>Use Golfolio to find golf that works for you. If you enjoy tracking your game, your personal round history and stats are there when you want them.</p><p class="optional-note">No scorekeeping or completed player profile required to explore after signing in.</p><a class="optional-link" href="/hub">Explore optional game tracking</a></div>
+  </section>
   <footer class="site-footer">
     <div class="footer-inner">
       <div class="footer-brand">Golfolio</div>
       <nav class="footer-nav" aria-label="Footer">
         <a href="#verified-explainer">What verified means</a>
-        <a href="/?login=1">Privacy &amp; settings</a>
+        <a href="/settings">Privacy &amp; settings</a>
       </nav>
     </div>
     <section class="verified-explainer" id="verified-explainer" aria-labelledby="verified-heading">
@@ -135,6 +134,7 @@
     function boardSession(){try{return JSON.parse(localStorage.getItem('golfolio_session')||'null')}catch{return null}}
     function promptLogin(){const button=$('#accountButton');if(button)button.click();else $('#loginModal')?.classList.add('open')}
     function setExploreMode(signedIn){
+      if(!signedIn){const photo=document.getElementById('homePhoto');photo.replaceChildren();photo.hidden=true;}
       document.body.classList.toggle('signed-in',!!signedIn);
       document.body.classList.toggle('signed-out',!signedIn);
       document.documentElement.classList.toggle('signed-in',!!signedIn);
@@ -142,6 +142,7 @@
       const nearMe=$('#nearMeButton'),locBar=$('#locationBar');
       if(nearMe)nearMe.hidden=!signedIn;
       if(locBar)locBar.classList.toggle('hidden',!signedIn);
+      if(!coords)$('#locationText').textContent=signedIn?'Use your location to find golf near you.':'Sign in to use nearby golf.';
       window.golfolioSyncAuthModal?.();
     }
     function renderSignedOutPreview(){
@@ -153,26 +154,32 @@
         {kind:'training',label:'Training'},{kind:'charity',label:'Charity'},{kind:'corporate',label:'Corporate'}
       ];
       board.innerHTML=`<section class="preview-locked">
-        <p class="preview-intro">Sign in to explore verified golf near you. Create a free player account to unlock the board—courses, tournaments, simulators, training, charity, and corporate golf near Sherman.</p>
-        <div class="category-mosaic" aria-hidden="true">${categories.map(item=>`<div class="mosaic-tile">${categoryIcon(item.kind)}<span>${item.label}</span></div>`).join('')}</div>
+        <p class="preview-intro">Explore courses, tournaments, lessons, and indoor golf. Find practical details to help you plan your visit.</p>
+        <div class="category-mosaic">${categories.map(item=>`<button type="button" class="mosaic-tile" data-preview-kind="${item.kind}">${categoryIcon(item.kind)}<span>${item.label}</span></button>`).join('')}</div>
         <div class="preview-cta-row"><button type="button" class="button" id="previewSignupCta">Create account</button><span class="preview-signin">Already have an account? <button type="button" class="text-link" id="previewSigninCta">Sign in</button></span></div>
       </section>`;
+      board.querySelectorAll('[data-preview-kind]').forEach(button=>button.onclick=()=>{kindFilter=button.dataset.previewKind;document.querySelectorAll('#kindFilters [data-kind]').forEach(x=>x.classList.toggle('active',x.dataset.kind===kindFilter));promptLogin();});
       $('#previewSignupCta').onclick=openModal;
       $('#previewSigninCta').onclick=()=>{$('#accountButton')?.click()};
-      $('#boardTitle').textContent='Explore nearby.';
-      $('#boardCopy').textContent='Create a free player account to unlock the board.';
+      $('#boardTitle').textContent='Find your next round';
+      $('#boardCopy').textContent='For a first lesson, a regular round, or a day worth making time for.';
     }
     function render(list){
       setExploreMode(true);
       const board=$('#listingBoard'),empty=$('#emptyBoard');
-      if(!list.length){board.classList.add('hidden');empty.classList.remove('hidden');$('#boardTitle').textContent='Explore nearby.';$('#boardCopy').textContent='Only approved, real information appears here.';return}
-      empty.classList.add('hidden');board.classList.remove('hidden');board.setAttribute('aria-label','Explore nearby');
+      if(!list.length){board.classList.add('hidden');empty.classList.remove('hidden');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent='No listings in this view yet. Try another category or check back for updates.';return}
+      empty.classList.add('hidden');board.classList.remove('hidden');board.setAttribute('aria-label','Explore nearby');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent=list.length+' verified '+(list.length===1?'spot':'spots')+' to explore. Compare the details and choose where to play.';
       board.innerHTML=list.map(x=>{
         const date=x.starts_at?new Date(x.starts_at).toLocaleDateString():'';
-        const meta=`${escapeHtml(x.city||'Sherman area')} · ${escapeHtml(kindLabel(x.kind))}`;
+        const meta=`${escapeHtml(x.city||'Golf')} · ${escapeHtml(kindLabel(x.kind))}`;
         return `<a class="listing-card" href="/listing?id=${encodeURIComponent(x.id)}">${listingMedia(x)}<div class="listing-body"><div class="listing-top"><h3>${escapeHtml(x.title)}</h3>${verifiedBadge()}</div><p class="listing-meta">${meta}</p>${date?`<p class="listing-date">${escapeHtml(date)}</p>`:''}<p class="listing-price">${escapeHtml(x.price_note||'See official source for pricing')}</p><span class="listing-arrow" aria-hidden="true">→</span></div></a>`;
       }).join('');
       attachCoverFallbacks(board);
+      const photo=document.getElementById('homePhoto');
+      if(photo.hidden){
+        const featured=list.find(x=>typeof x.cover_photo_url==='string'&&x.cover_photo_url.startsWith('https://'));
+        if(featured){const img=document.createElement('img');img.alt='';img.onload=()=>{photo.hidden=false};img.onerror=()=>{photo.hidden=true;photo.replaceChildren()};img.src=featured.cover_photo_url;photo.replaceChildren(img);}
+      }
     }
     let boardPrefs={radius:15,kinds:null,useLocation:false},kindFilter='all';
     async function loadBoardPrefs(){try{const session=boardSession();if(!session?.access_token)return;const r=await fetch('/api/settings',{headers:{Authorization:'Bearer '+session.access_token}});if(!r.ok)return;const d=await r.json(),s=d.settings||{};boardPrefs.radius=Number(s.nearby_radius_miles||15);boardPrefs.useLocation=!!s.use_location;boardPrefs.kinds=new Set([s.show_tournaments&&'tournament',s.show_courses&&'course',s.show_training&&'training',s.show_simulators&&'simulator'].filter(Boolean));if(boardPrefs.useLocation&&!coords)useLocation(true)}catch{}}
@@ -194,7 +201,7 @@
     function useLocation(fromSettings){
       if(!boardSession()?.access_token){$('#locationText').textContent='Sign in to explore verified golf near you.';promptLogin();return}
       if(!navigator.geolocation){$('#locationText').textContent='This browser does not support location.';return}
-      navigator.geolocation.getCurrentPosition(p=>{coords={lat:p.coords.latitude,lng:p.coords.longitude};const radius=boardPrefs.radius||15;$('#locationText').textContent='Showing verified listings within '+radius+' miles of you.';$('#boardTitle').textContent='Golf within '+radius+' miles';$('#boardCopy').textContent=fromSettings?'Location preference is on for this visit. Precise coordinates are not stored.':'Location is on for this visit only. Precise coordinates are not stored.';loadListings()},()=>{$('#locationText').textContent='Location was not shared — showing the Sherman service area.'},{enableHighAccuracy:false,timeout:10000,maximumAge:fromSettings?0:300000})
+      navigator.geolocation.getCurrentPosition(p=>{coords={lat:p.coords.latitude,lng:p.coords.longitude};const radius=boardPrefs.radius||15;$('#locationText').textContent='Showing verified listings within '+radius+' miles of you.';$('#boardTitle').textContent='Golf within '+radius+' miles';$('#boardCopy').textContent=fromSettings?'Location preference is on for this visit. Precise coordinates are not stored.':'Location is on for this visit only. Precise coordinates are not stored.';loadListings()},()=>{$('#locationText').textContent='Location was not shared — showing available listings.'},{enableHighAccuracy:false,timeout:10000,maximumAge:fromSettings?0:300000})
     }
     window.golfolioLoadBoard=loadListings;
     window.golfolioLoadBoardPrefs=loadBoardPrefs;
@@ -203,12 +210,6 @@
     document.querySelectorAll('#kindFilters [data-kind]').forEach(button=>button.onclick=()=>{kindFilter=button.dataset.kind;document.querySelectorAll('#kindFilters [data-kind]').forEach(x=>x.classList.toggle('active',x===button));loadListings()});
     $('#signupForm').onsubmit=async e=>{e.preventDefault();const status=$('#signupStatus'),username=$('#username').value.trim(),email=$('#email').value.trim(),password=$('#password').value,confirmation=$('#confirmPassword').value;if(password!==confirmation){status.textContent='Passwords do not match.';return}status.textContent='Creating your account...';try{const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password,username})}),data=await r.json();if(!r.ok)throw Error(data.msg||data.message||'Unable to create account.');status.textContent='Check your email to verify your Golfolio account.';$('#signupForm').reset()}catch(err){status.textContent=err.message}};
     loadListings();
-    const AREA_DEFAULT={label:'Sherman, Texas',radius:30};
-    function loadAreaPanel(){
-      const radiusEl=$('#areaPanelRadius');
-      if(radiusEl)radiusEl.textContent=`${AREA_DEFAULT.radius}-mile service area centered on ${AREA_DEFAULT.label}`;
-    }
-    loadAreaPanel();
     setExploreMode(!!boardSession()?.access_token);
   </script>
   <div class="modal" id="loginModal"><div class="dialog"><button class="close" aria-label="Close">x</button><h2>Welcome back</h2><p>Sign in to explore verified golf near you.</p><form class="form" id="loginForm"><label for="loginEmail">Email address</label><input id="loginEmail" type="email" required><label for="loginPassword">Password</label><input id="loginPassword" type="password" required><button class="button" type="submit">Sign in</button><button class="text-button" type="button" id="forgotPassword">Forgot password?</button><button class="text-button" type="button" id="goToSignup">New here? Create a free account</button><p class="status" id="loginStatus"></p></form></div></div>
@@ -222,17 +223,17 @@
   <script src="/app-nav.js"></script>
   <script>
     (()=>{const $=s=>document.querySelector(s),getConfig=async()=>{if(window.golfolioConfig)return window.golfolioConfig;const r=await fetch('/api/config');return window.golfolioConfig=await r.json()},syncAuthModal=()=>window.golfolioSyncAuthModal?.(),open=id=>{$(id).classList.add('open');syncAuthModal()},close=id=>{$(id).classList.remove('open');syncAuthModal()};let session=null,profile=null;
-      const inject=document.createElement('style');inject.textContent='.top-actions{position:relative}.ghost-top{background:transparent!important;border:1px solid #d7e7dc;color:#fff!important}.account-menu{position:absolute;right:0;top:52px;width:210px;padding:8px;background:#fff;border:1px solid #dfe9e0;border-radius:12px;box-shadow:0 12px 28px #071c1233;z-index:20}.account-menu button{display:block;width:100%;padding:10px;border:0;background:transparent;color:#143326;text-align:left;font-weight:800;cursor:pointer;border-radius:8px}.account-menu button:hover{background:#e6f6e9}.account-menu .menu-note{display:block;padding:5px 10px 9px;color:#65766c;font-size:12px}.avatar-picker{display:flex;gap:8px;flex-wrap:wrap}.avatar-choice{width:42px;height:42px;border-radius:50%;border:2px solid #dfe9e0;background:#e6f6e9;color:#198754;font-weight:800;cursor:pointer}.avatar-choice.selected{border-color:#198754;background:#198754;color:#fff}.profile-avatar{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:#e6f6e9;color:#198754;font-weight:900;font-size:22px}.password-row{display:flex;gap:7px}.password-row input{flex:1}.show-password{min-width:62px;border:1px solid #cfdcd2;border-radius:10px;background:#f6faf6;color:#17683e;font-weight:800;cursor:pointer}.text-button{border:0;background:none;color:#198754;text-align:left;padding:0;font-weight:800;cursor:pointer}.profile-row{padding:12px 0;border-bottom:1px solid #dfe9e0}.profile-row b{display:block}.admin-dialog{max-width:700px}.review{border:1px solid #dfe9e0;border-radius:12px;padding:14px;margin:12px 0}.review h3{margin:0 0 5px;font:20px Georgia,serif}.review p{margin:4px 0;font-size:14px}.review-actions{display:flex;gap:8px;margin-top:10px}.review-actions .reject{background:#8a3428}';document.head.append(inject);
+
       document.querySelectorAll('.modal .close').forEach(x=>x.onclick=()=>{x.closest('.modal').classList.remove('open');syncAuthModal()});
       document.querySelectorAll('[data-password-toggle]').forEach(button=>button.onclick=()=>{const input=document.getElementById(button.dataset.passwordToggle),hidden=input.type==='password';input.type=hidden?'text':'password';button.textContent=hidden?'Hide':'Show'});
       // Wire Sign in immediately so the login form opens even if session restore fails.
       $('#accountButton').onclick=()=>open('#loginModal');
       const reloadBoard=()=>{if(typeof window.golfolioLoadBoardPrefs==='function')window.golfolioLoadBoardPrefs();if(typeof window.golfolioLoadBoard==='function')window.golfolioLoadBoard()};
       const safeReturnTo=value=>{const path=String(value||'');return path.startsWith('/')&&!path.startsWith('//')?path:''};
-      async function updateAccount(){const signup=$('#signupButton'),menu=$('#accountMenu'),go=path=>location.assign(path);if(!session){signup.classList.remove('hidden');menu.classList.add('hidden');$('#accountButton').textContent='Sign in';$('#accountButton').onclick=()=>open('#loginModal');signup.onclick=()=>open('#signupModal');setExploreMode(false);return}signup.classList.add('hidden');$('#accountButton').textContent=profile?.username||'My profile';setExploreMode(true);$('#accountButton').onclick=()=>{menu.innerHTML=`<span class="menu-note">Signed in as ${profile?.username||'Player'}</span><button id="menuGame">My game</button><button id="menuPlayers">Find players</button><button id="menuSettings">Settings</button>${profile?.role==='admin'?'<button id="menuCompany">Company settings</button><button id="menuReview">Listings</button>':''}<button id="menuSignOut">Sign out</button>`;menu.classList.toggle('hidden');$('#menuGame').onclick=()=>go('/hub');$('#menuPlayers').onclick=()=>go('/players');$('#menuSettings').onclick=()=>go('/settings');if(profile?.role==='admin'){$('#menuCompany').onclick=()=>go('/company');$('#menuReview').onclick=()=>go('/listings')};$('#menuSignOut').onclick=signOut;};}
+      async function updateAccount(){const signup=$('#signupButton'),menu=$('#accountMenu'),go=path=>window.golfolioNavigate(path);if(!session){signup.classList.remove('hidden');menu.classList.add('hidden');$('#accountButton').textContent='Sign in';$('#accountButton').onclick=()=>open('#loginModal');signup.onclick=()=>open('#signupModal');setExploreMode(false);return}signup.classList.add('hidden');$('#accountButton').textContent=profile?.username||'My profile';setExploreMode(true);$('#accountButton').onclick=()=>{menu.innerHTML=`<span class="menu-note">Signed in as ${profile?.username||'Player'}</span><button id="menuGame">My game</button><button id="menuPlayers">Find players</button><button id="menuSettings">Settings</button>${profile?.role==='admin'?'<button id="menuCompany">Company settings</button><button id="menuReview">Listings</button>':''}<button id="menuSignOut">Sign out</button>`;menu.classList.toggle('hidden');$('#menuGame').onclick=()=>go('/hub');$('#menuPlayers').onclick=()=>go('/players');$('#menuSettings').onclick=()=>go('/settings');if(profile?.role==='admin'){$('#menuCompany').onclick=()=>go('/company');$('#menuReview').onclick=()=>go('/listings')};$('#menuSignOut').onclick=signOut;};}
       async function signIn(email,password){const c=await getConfig();const r=await fetch(c.supabaseUrl+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:c.supabaseAnonKey,'Content-Type':'application/json'},body:JSON.stringify({email,password})});const d=await r.json();if(!r.ok)throw Error(d.error_description||d.msg||'Unable to sign in.');session=d;localStorage.setItem('golfolio_session',JSON.stringify(d));await loadProfile();}
       async function loadProfile(){try{const c=await getConfig();const r=await fetch(c.supabaseUrl+'/rest/v1/profiles?select=id,username,role,created_at,first_name,last_name,phone,avatar',{headers:{apikey:c.supabaseAnonKey,Authorization:'Bearer '+session.access_token}});if(!r.ok)throw Error('Session expired');const rows=await r.json();if(!Array.isArray(rows))throw Error('Session expired');profile=rows[0]||null;await updateAccount();reloadBoard()}catch{localStorage.removeItem('golfolio_session');session=profile=null;await updateAccount();reloadBoard()}}
-      $('#loginForm').onsubmit=async e=>{e.preventDefault();const s=$('#loginStatus');s.textContent='Signing in...';try{await signIn($('#loginEmail').value,$('#loginPassword').value);s.textContent='You are signed in.';const returnTo=safeReturnTo(new URLSearchParams(location.search).get('returnTo'));setTimeout(()=>returnTo?location.assign(returnTo):close('#loginModal'),500)}catch(err){s.textContent=err.message}};
+      $('#loginForm').onsubmit=async e=>{e.preventDefault();const s=$('#loginStatus');s.textContent='Signing in...';try{await signIn($('#loginEmail').value,$('#loginPassword').value);s.textContent='You are signed in.';const returnTo=safeReturnTo(new URLSearchParams(location.search).get('returnTo'));setTimeout(()=>returnTo?window.golfolioNavigate(returnTo):close('#loginModal'),500)}catch(err){s.textContent=err.message}};
       $('#forgotPassword').onclick=async()=>{const s=$('#loginStatus'),email=$('#loginEmail').value.trim();if(!email){s.textContent='Enter your email address first.';return}try{const c=await getConfig(),redirectTo=location.origin+'/?reset=1';const r=await fetch(c.supabaseUrl+'/auth/v1/recover',{method:'POST',headers:{apikey:c.supabaseAnonKey,'Content-Type':'application/json'},body:JSON.stringify({email,redirect_to:redirectTo})});if(!r.ok)throw Error('Could not send reset email.');s.textContent='If that email exists, a reset link is on its way.'}catch(err){s.textContent=err.message}};
       $('#goToSignup').onclick=()=>{close('#loginModal');open('#signupModal')};
       $('#resetForm').onsubmit=async e=>{e.preventDefault();const s=$('#resetStatus'),password=$('#resetPassword').value,confirmation=$('#resetConfirmPassword').value,token=new URLSearchParams(location.hash.slice(1)).get('access_token');if(password!==confirmation){s.textContent='Passwords do not match.';return}if(!token){s.textContent='This reset link is incomplete or has expired. Request a new one.';return}s.textContent='Saving your new password...';try{const c=await getConfig(),r=await fetch(c.supabaseUrl+'/auth/v1/user',{method:'PUT',headers:{apikey:c.supabaseAnonKey,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({password})});if(!r.ok)throw Error('Could not save your password. Please request a new reset email.');s.textContent='Password updated. You can now sign in.';history.replaceState(null,'',location.pathname);setTimeout(()=>{close('#resetModal');open('#loginModal')},900)}catch(err){s.textContent=err.message}};

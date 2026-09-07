@@ -4,5 +4,7 @@
       "path": "/api/expire",
       "schedule": "10 6 * * *"
     }
-  ]
+  ],
+  "buildCommand": "npm run web:build",
+  "outputDirectory": "web-dist"
 }

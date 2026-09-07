@@ -1,0 +1,13 @@
+---
+description: Golfolio project context and local Mac/iOS development workflow
+alwaysApply: true
+---
+Read `CURSOR_HANDOFF.md` at the repository root before starting work. Read `outputs/the-golfer/MOBILE.md` for iOS commands and architecture. Check the current Git branch and working tree; preserve local changes.
+
+The web app lives in `outputs/the-golfer`, not the repository root. The local Capacitor integration is on `codex/capacitor-ios`; main is older. Do not switch to main or overwrite the local integration to synchronize with cloud work.
+
+Use real verified listing information only. Never add invented venues, players, scores, prices, photos, reviews, or fake live-status claims. Keep secrets server-side and exclude server files from the native bundle. Maintain existing authentication and admin authorization boundaries.
+
+Make changes and validate locally. Explain the exact release contents before any merge/deployment and obtain user authorization for that release. Do not run Supabase SQL or change remote services as part of routine local setup.
+
+For native changes, edit source files then run `npm run ios:sync` from the app directory. Do not hand-edit generated `mobile-dist` or `ios/App/App/public`. Use `npm run check:mobile` and `node scripts/check-venue-community.mjs` when relevant. Real device/simulator checks are still needed for native behavior.
