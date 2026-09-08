@@ -1,0 +1,164 @@
+GOLFIOLIO — FUNCTIONAL LAUNCH FOUNDATION (PHASE 2)
+Branch: cursor/functional-launch-foundation-20b8
+Commit: bc02ba5
+PR: https://github.com/Wolferat/The-Golf-App/pull/16
+Base: cursor/venue-community-reviews-20b8
+Production: NOT changed (no deploy, no prod migrations)
+
+STATUS: Functional scope completed in code. NOT ready for visual-only finishing. Migrations 09–15 must be applied on isolated/staging Supabase before live QA.
+
+────────────────────────────────────────
+PHASE 2 FIXES (10 CONFIRMED GAPS)
+────────────────────────────────────────
+
+1. LEGACY DISCOVERY BYPASS — DONE
+   /api/player?view=players no longer returns a browsable directory with private fields. Requires exact username, routes through lib/social-discovery.js, empty search returns 400.
+
+2. EXACT-USERNAME DISCOVERY — DONE
+   /api/social?view=discovery: empty search returns { players: [] }. No wildcards. Eligibility, block checks, hourly rate limits via social_rate_events + lib/rate-limit.js.
+
+3. PRIVATE ROUNDS — DONE
+   Owner-only update_round / delete_round. Stats from full history (fetchRoundStats), not 50-row page limit. Hub edit/delete buttons. Unit test for >50 rounds.
+
+4. FRIENDSHIP LIFECYCLE — DONE
+   Cancel request, remove friend, block/unblock list, unguessable revocable invitations (lib/invitations.js). Duplicate-request prevention. Block recheck on accept.
+
+5. MODERATION — DONE (UI prompt-based)
+   /api/moderation: queue, open/close report, restrict/clear account, action history. Account restrictions enforced on rounds, reviews, photo submit. Report/block stay available without social eligibility. Admin section on listings page.
+
+6. PHOTO PROCESSING — DONE
+   lib/contribution-photos.js: decode/validate content (not MIME alone), bound dimensions, rotate, resize, JPEG output, strip metadata. Storage rollback on DB failure. Listing detail contribution form + admin review queue.
+
+7. RELIABLE DELETION — DONE
+   Password reauth, step tracking, cleanup_pending vs completed, strict cleanup (no swallowed failures), retry_cleanup action. /api/purge-evidence cron in vercel.json (daily 07:20 UTC).
+
+8. INTEGRATION TESTS — DONE (skip when no test DB)
+   Removed placeholder functional-integration.test.mjs.
+   Added functional-db.integration.test.mjs (skips when SUPABASE_FUNCTIONAL_TEST_URL + SUPABASE_FUNCTIONAL_TEST_SERVICE_ROLE_KEY unset).
+   Added unit tests: social-discovery, rounds, contribution-photos.
+
+9. LISTING DETAIL + SUPPORT — DONE
+   Fixed broken listing-page.js handlers: save, share, calendar ICS, contribution submit/status, report.
+   Restored official photos section kicker.
+   Round modal copy private-only (visibility selector removed).
+   Settings “Help and safety” loads support links from /api/social?view=support.
+
+10. HANDOFF + AUDIT — DONE
+    FUNCTIONAL_HANDOFF_FOR_CODEX.md rewritten with per-requirement Implemented / Partial / Blocked table. Branch explicitly NOT marked ready for visual-only finish.
+
+────────────────────────────────────────
+NEW / KEY FILES
+────────────────────────────────────────
+
+lib/social-discovery.js       exact username lookup
+lib/rate-limit.js             DB-backed rate events
+lib/rounds.js                 stats, edit/delete helpers
+lib/moderation.js             account restrictions
+lib/contribution-photos.js    sharp image pipeline
+lib/account-deletion.js       deletion lifecycle
+lib/invitations.js            token generation/hashing
+lib/listing-share.js          share URL + ICS builder (server lib)
+api/moderation.js             admin moderation queue
+api/purge-evidence.js         evidence retention purge cron
+supabase/15-social-moderation-completion-migration.sql
+scripts/functional-db.integration.test.mjs
+scripts/rounds.test.mjs
+scripts/social-discovery.test.mjs
+scripts/contribution-photos.test.mjs
+
+────────────────────────────────────────
+MIGRATIONS (PREPARE ONLY — DO NOT RUN IN PROD FROM THIS HANDOFF)
+────────────────────────────────────────
+
+Apply in order after existing migrations through signed-in-data-gate-migration.sql:
+
+1. supabase/09-event-timezone-migration.sql
+2. supabase/10-saved-listings-migration.sql
+3. supabase/11-private-rounds-migration.sql
+4. supabase/12-social-foundation-migration.sql
+5. supabase/13-photo-contributions-migration.sql
+6. supabase/14-account-lifecycle-migration.sql
+7. supabase/15-social-moderation-completion-migration.sql
+
+────────────────────────────────────────
+TESTS (THIS WORKSPACE)
+────────────────────────────────────────
+
+npm run check:functional  → 27 pass, 3 skipped (no isolated Supabase)
+npm run check:photos      → 21/21 pass
+npm run check:experience  → 7/7 pass
+npm run check:mobile      → 3/3 pass
+npm run web:build         → pass
+
+DB integration tests SKIPPED here (no SUPABASE_FUNCTIONAL_TEST_*). Skipping is explicit — not proof of RLS/storage correctness.
+
+To run DB tests later:
+  export SUPABASE_FUNCTIONAL_TEST_URL=...
+  export SUPABASE_FUNCTIONAL_TEST_SERVICE_ROLE_KEY=...
+  cd outputs/the-golfer && npm run check:functional
+
+────────────────────────────────────────
+FEATURE GATES (DEFAULTS — SQL/app_settings)
+────────────────────────────────────────
+
+social_features_enabled              → false
+account_deletion_enabled           → false
+moderation_evidence_retention_days → null
+player_support_email/url           → null
+community_standards_url            → null
+safety_help_url                    → null
+Round visibility                   → private only
+
+────────────────────────────────────────
+REQUIREMENT AUDIT SUMMARY
+────────────────────────────────────────
+
+IMPLEMENTED (code + wired UI):
+  Discovery categories, US location lookup, event timezones
+  Saved listings, private rounds, round edit/delete, full-history stats
+  Exact-username discovery, social attestation, friendship lifecycle
+  Photo contributions + processing pipeline + admin review API
+  Listing save/share/calendar/report/contribution on detail page
+  Web auth (sign-in, signup, forgot/reset password, email change)
+
+PARTIAL (backend exists; gaps remain):
+  Moderation UI uses prompts — needs Codex polish
+  Support config: API + Settings links work; Company settings UI does NOT edit player_support_* fields (SQL only)
+  Account deletion: code complete; needs migration + owner gates before prod
+  Saved listings: Settings + detail save work; no badge on explore cards
+  Restriction enforcement: rounds/reviews/contributions/social; not every legacy path device-tested
+  DB integration tests: executable but not run against live isolated DB here
+  index.html embedded hub modal still has legacy follow UI (player-pages.js route is updated)
+
+BLOCKED / DEFERRED:
+  Production migrations not applied
+  Device/iPhone QA not run on Linux agent
+  Native auth deep links not implemented
+  Visual polish deferred to Codex (keep current styling direction)
+
+────────────────────────────────────────
+OUTSTANDING FOR CODEX / OWNER
+────────────────────────────────────────
+
+1. Apply migrations 09–15 on staging; run functional QA
+2. Set player_support_*, community_standards_url, safety_help_url in app_settings (or add Company settings fields)
+3. Replace prompt-based report/moderation UX with polished components (keep API contracts)
+4. Add Company settings UI for social/deletion/support toggles
+5. Remove/update legacy follow UI in index.html hub modal
+6. Visual/copy pass: attestation, empty states, saved-listings affordance
+7. Device QA: keyboard, Capacitor Browser links, photo upload, session expiry
+
+────────────────────────────────────────
+LOCAL COMMANDS
+────────────────────────────────────────
+
+cd outputs/the-golfer
+npm install
+npm run web:build
+npm run check:functional
+npm run check:photos
+npm run preview:live
+
+Full detail: FUNCTIONAL_HANDOFF_FOR_CODEX.md in repo root.
+
+DO NOT use cursor/settings-page-20b8. This branch extends venue-community baseline only.
