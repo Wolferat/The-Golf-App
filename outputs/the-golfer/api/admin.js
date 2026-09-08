@@ -116,7 +116,7 @@ export default async function handler(req, res) {
     }
 
     if (action === 'update' || req.method === 'PUT' || req.method === 'PATCH') {
-      const updates = pickListingFields(req.body?.listing || req.body || {}, { allowStatus: true });
+      const updates = pickListingFields(req.body?.listing || req.body || {}, { allowStatus: true, existing: current });
       delete updates.photos; // Photo decisions use the reviewed gallery, never the legacy JSON field.
       const publishing = updates.status === 'approved' && current.status !== 'approved';
       const photoIds = publishing ? await reviewPhotos({...current,...updates},req.body) : [];

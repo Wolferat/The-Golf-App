@@ -24,6 +24,33 @@
     if(!r.ok)throw Error(d.error||'Could not load company settings.');
     return d;
   };
+  const socialApi=async(path='',options={})=>{
+    const r=await fetch('/api/social'+path,{...options,headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json',...(options.headers||{})}});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Social request failed.');
+    return d;
+  };
+  const savedApi=async(options={})=>{
+    const r=await fetch('/api/saved-listings',{...options,headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json',...(options.headers||{})}});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Saved listings request failed.');
+    return d;
+  };
+  const accountApi=async(options={})=>{
+    const r=await fetch('/api/account',{...options,headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json',...(options.headers||{})}});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Account request failed.');
+    return d;
+  };
+  const EVENT_TZ='America/Chicago';
+  const dtLocal=(value,dateOnly)=>{
+    if(!value)return'';
+    if(dateOnly||/^\d{4}-\d{2}-\d{2}$/.test(String(value)))return String(value).slice(0,10);
+    const instant=new Date(value);
+    const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:EVENT_TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+    const parts=Object.fromEntries(fmt.formatToParts(instant).map(p=>[p.type,p.value]));
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+  };
   const config=async()=>{
     const r=await fetch('/api/config'), d=await r.json();
     if(!r.ok)throw Error('Account settings are unavailable.');
@@ -89,22 +116,37 @@
   const mountPlayers=async()=>{
     profile=(await api('?view=me')).profile||{};
     const body=$('#pageBody');
-    body.innerHTML=`<section class="card"><label for="playerSearch"><strong>Search player usernames</strong></label><input class="search" id="playerSearch" maxlength="24" placeholder="Search by username"><div class="players" id="playerResults"><p>Loading players...</p></div></section>`;
-    const search=$('#playerSearch'),results=$('#playerResults');
+    const social=await socialApi('?view=status').catch(()=>({eligibility:{status:'unknown'},social_features_enabled:false}));
+    body.innerHTML=`<section class="card"><div class="kicker">Social</div><h2>Golf crew</h2><p class="settings-note">Adult self-attestation is required before friend requests and social discovery. Reporting and blocking stay available from listing and player actions.</p><div id="socialGate"></div><label for="playerSearch"><strong>Search player usernames</strong></label><input class="search" id="playerSearch" maxlength="24" placeholder="Search by username"><div class="players" id="playerResults"><p>Loading players...</p></div><div id="friendRequests"></div></section>`;
+    const gate=$('#socialGate');
+    if(!social.social_features_enabled){
+      gate.innerHTML='<p class="notice">Social features are disabled until the owner enables them after policy review.</p>';
+    }else if(social.eligibility?.status!=='eligible'){
+      gate.innerHTML=`<form class="form" id="attestForm"><label class="check"><input id="attestConfirm" type="checkbox"><span>I am 18 or older and agree to the current Golfolio social participation policy (${escape(social.policy_version||'2026-09-adult-self-attestation-v1')}). This is self-attestation, not identity verification.</span></label><button class="button" type="submit">Continue to social features</button><p class="status" id="attestStatus"></p></form>`;
+      $('#attestForm').onsubmit=async e=>{e.preventDefault();const s=$('#attestStatus');if(!$('#attestConfirm').checked){s.textContent='Confirm the attestation to continue.';return}s.textContent='Saving...';try{await socialApi('',{method:'POST',body:JSON.stringify({action:'attest_adult',confirmed:true})});location.reload()}catch(err){s.textContent=err.message}};
+    }else{
+      gate.innerHTML='<p class="settings-note">Social self-attestation complete.</p>';
+    }
+    const search=$('#playerSearch'),results=$('#playerResults'),requests=$('#friendRequests');
+    const loadRequests=async()=>{
+      try{
+        const d=await socialApi('?view=requests');
+        const pending=(d.friendships||[]).filter(x=>x.status==='pending'&&x.addressee_id===profile.id);
+        requests.innerHTML=pending.length?`<section class="card"><h3>Friend requests</h3>${pending.map(x=>`<div class="player"><div class="player-main"><strong>Request pending</strong></div><div class="action-row"><button class="button" data-fid="${escape(x.id)}" data-decision="accept">Accept</button><button class="button ghost" data-fid="${escape(x.id)}" data-decision="decline">Decline</button></div></div>`).join('')}</section>`:'';
+        requests.querySelectorAll('[data-fid]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'respond_friendship',friendship_id:b.dataset.fid,decision:b.dataset.decision})});loadRequests();load()}catch(e){b.disabled=false;alert(e.message)}});
+      }catch{}
+    };
     const load=async()=>{
+      if(!social.social_features_enabled||social.eligibility?.status!=='eligible'){results.innerHTML='<p>Complete social self-attestation to search players.</p>';return}
       results.innerHTML='<p>Searching...</p>';
       try{
-        const d=await api('?view=players&q='+encodeURIComponent(search.value.trim()));
-        results.innerHTML=d.players.length?d.players.map(p=>`<div class="player"><div class="avatar">${avatar(p)}</div><div class="player-main"><strong>${escape(p.username)}</strong><small>${escape(p.city||p.home_course||'Golfolio player')}</small></div><button class="button" data-id="${p.id}" data-following="${p.following}">${p.following?'Following':'Follow'}</button></div>`).join(''):`<div class="empty"><h2>No player found.</h2><p>Try another username as more golfers join Golfolio.</p></div>`;
-        results.querySelectorAll('[data-id]').forEach(b=>b.onclick=async()=>{
-          b.disabled=true;
-          try{await api('',{method:'POST',body:JSON.stringify({action:b.dataset.following==='true'?'unfollow':'follow',following_id:b.dataset.id})});load()}
-          catch(e){b.disabled=false;alert(e.message)}
-        });
+        const d=await socialApi('?view=discovery&q='+encodeURIComponent(search.value.trim()));
+        results.innerHTML=d.players?.length?d.players.map(p=>`<div class="player"><div class="avatar">${avatar(p)}</div><div class="player-main"><strong>${escape(p.username)}</strong><small>${escape(p.city||p.home_course||'Golfolio player')}</small></div><button class="button" data-id="${p.id}">Send request</button></div>`).join(''):`<div class="empty"><h2>No eligible players found.</h2><p>Try another username.</p></div>`;
+        results.querySelectorAll('[data-id]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'friend_request',user_id:b.dataset.id})});b.textContent='Requested'}catch(e){b.disabled=false;alert(e.message)}});
       }catch(e){results.innerHTML=`<div class="notice">${escape(e.message)}</div>`}
     };
     search.oninput=()=>{clearTimeout(search.timer);search.timer=setTimeout(load,250)};
-    load();
+    loadRequests();load();
   };
 
   const toggleRow=(id,title,copy,checked)=>`<label class="toggle-row" for="${id}"><div><strong>${title}</strong><span>${copy}</span></div><span class="switch"><input id="${id}" type="checkbox" ${checked?'checked':''}><span></span></span></label>`;
@@ -199,9 +241,18 @@
         </section>
 
         <section class="card">
+          <div class="kicker">Saved listings</div>
+          <h2>Saved golf spots</h2>
+          <p class="settings-note">Saved listings do not require social participation.</p>
+          <div id="savedListings"><p>Loading saved listings...</p></div>
+        </section>
+
+        <section class="card">
           <div class="kicker">Data / security</div>
           <h2>Your information stays yours</h2>
           <p class="settings-note">Your settings are private to your account. You choose what to share with other golfers.</p>
+          <div id="roundsPrivacyNotice"></div>
+          <div id="accountDeletionPanel"><p>Loading account options...</p></div>
         </section>
       </div>`;
 
@@ -277,6 +328,28 @@
       if(!navigator.geolocation){status.textContent='This browser does not support location.';return}
       status.textContent='Waiting for browser permission...';
       navigator.geolocation.getCurrentPosition(async()=>{
+        status.textContent='Browser location is available for this visit.';
+      },()=>{status.textContent='Browser location was not shared.'},{enableHighAccuracy:false,timeout:10000});
+    };
+
+    const savedBox=$('#savedListings');
+    savedApi().then(d=>{
+      const rows=(d.saved||[]).filter(x=>x.available);
+      savedBox.innerHTML=rows.length?rows.map(x=>`<p><a href="/listing?id=${encodeURIComponent(x.listing_id)}">${escape(x.listing?.title||'Saved listing')}</a></p>`).join(''):'<p>No saved listings yet. Save listings from listing detail when available.</p>';
+    }).catch(e=>{savedBox.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
+
+    const roundsNotice=$('#roundsPrivacyNotice');
+    roundsNotice.innerHTML='<p class="notice">Round history is private to you in this release. Existing rounds were migrated to owner-only visibility.</p>';
+
+    const deletionPanel=$('#accountDeletionPanel');
+    accountApi().then(info=>{
+      if(!info.account_deletion_enabled&&!info.test_mode){
+        deletionPanel.innerHTML='<p class="settings-note">Account deletion is not enabled yet. Owner must configure retention and enable deletion.</p>';
+        return;
+      }
+      deletionPanel.innerHTML=`<form class="form" id="deleteAccountForm"><p class="settings-note">Deleting your account removes authentication access and ordinary profile data. Moderation evidence may be retained for a configured period.</p><label class="check"><input id="deleteConfirm" type="checkbox"><span>I understand this permanently deletes my account.</span></label><label for="deleteConfirmText">Type DELETE to confirm</label><input id="deleteConfirmText" maxlength="10" autocomplete="off"><button class="button" type="submit">Delete my account</button><p class="status" id="deleteStatus"></p></form>`;
+      $('#deleteAccountForm').onsubmit=async e=>{e.preventDefault();const s=$('#deleteStatus');s.textContent='Deleting account...';try{const result=await accountApi({method:'POST',body:JSON.stringify({action:'delete_account',confirm:true,confirm_text:$('#deleteConfirmText').value})});localStorage.removeItem('golfolio_session');s.textContent=result.message||'Account deleted.';setTimeout(()=>window.golfolioNavigate('/'),800)}catch(err){s.textContent=err.message}};
+    }).catch(e=>{deletionPanel.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
         try{
           $('#useLocation').checked=true;
           await settingsApi({method:'PUT',body:JSON.stringify({use_location:true,nearby_radius_miles:Number($('#nearbyRadius').value||15)})});
@@ -597,7 +670,7 @@
     const wanted=new URLSearchParams(location.search).get('proposal');
     const proposal=proposals.find(x=>x.id===wanted&&x.kind==='enrichment'&&x.status==='pending')||proposals.find(x=>x.kind==='enrichment'&&x.status==='pending');
     const val=x=>x==null?'':String(x);
-    const dt=x=>x?new Date(x).toISOString().slice(0,16):'';
+    const dt=x=>dtLocal(x,listing.starts_at_date_only);
     const takeMedia=list=>Array.isArray(list)?list.slice(0,3):[];
     const photosCurrent=[];
     const photosProposed=takeMedia(proposal?.payload?.photos);
@@ -716,7 +789,7 @@
     const s=$('#roundStatus');
     s.textContent='Saving round...';
     try{
-      await api('',{method:'POST',body:JSON.stringify({action:'round',round:{listing_id:$('#roundVenue')?.value||null,course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:$('#roundVisibility').value}})});
+      await api('',{method:'POST',body:JSON.stringify({action:'round',round:{listing_id:$('#roundVenue')?.value||null,course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:'private'}})});
       s.textContent='Round saved.';
       setTimeout(()=>location.reload(),450);
     }catch(err){s.textContent=err.message}

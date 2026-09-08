@@ -1,3 +1,5 @@
+import { eventEnded, listingEventTimezone, parseEventInput, DEFAULT_EVENT_TIMEZONE } from './event-timezone.js';
+
 export const KINDS = ['tournament', 'course', 'training', 'simulator', 'charity', 'corporate'];
 export const PUBLIC_KINDS = KINDS;
 export const EVENT_KINDS = ['tournament', 'training', 'simulator', 'charity', 'corporate'];
@@ -189,10 +191,10 @@ export function chicagoDate(value) {
 export function shouldExpire(listing, now = new Date()) {
   if (!EVENT_KINDS.includes(listing.kind)) return false;
   if (listing.status !== 'approved') return false;
-  if (listing.ends_at) return new Date(listing.ends_at).getTime() < now.getTime();
-  if (listing.starts_at) return chicagoDate(now) > chicagoDate(listing.starts_at);
-  return false;
+  return eventEnded(listing, now, listingEventTimezone(listing));
 }
+
+export { eventEnded, listingEventTimezone } from './event-timezone.js';
 
 export const LISTING_SELECT = [
   'id','title','kind','status','description','city','venue_name','address','phone',
@@ -253,20 +255,32 @@ const EDITABLE = {
   },
   source_name: (v) => cleanText(v, 160),
   price_note: (v) => cleanText(v, 300),
-  starts_at: (v) => (v ? new Date(v).toISOString() : null),
-  ends_at: (v) => (v ? new Date(v).toISOString() : null),
+  starts_at: (v, row = {}) => {
+    if (v == null || v === '') return null;
+    return parseEventInput(v, {
+      previous: row.starts_at,
+      timeZone: row.event_timezone || DEFAULT_EVENT_TIMEZONE
+    }).value;
+  },
+  ends_at: (v, row = {}) => {
+    if (v == null || v === '') return null;
+    return parseEventInput(v, {
+      previous: row.ends_at,
+      timeZone: row.event_timezone || DEFAULT_EVENT_TIMEZONE
+    }).value;
+  },
   photos: (v) => cleanPhotos(v || []),
   reviews: (v) => cleanReviews(v || []),
   field_sources: (v) => (v && typeof v === 'object' ? v : {}),
   discovery_notes: (v) => cleanText(v, 1000)
 };
 
-export function pickListingFields(body = {}, { allowStatus = true } = {}) {
+export function pickListingFields(body = {}, { allowStatus = true, existing = {} } = {}) {
   const next = {};
   for (const [key, fn] of Object.entries(EDITABLE)) {
     if (body[key] === undefined) continue;
     if (key === 'status' && !allowStatus) continue;
-    next[key] = fn(body[key]);
+    next[key] = fn(body[key], existing);
   }
   if (next.starts_at === 'Invalid Date' || next.ends_at === 'Invalid Date') {
     throw new Error('Event dates must be valid.');
