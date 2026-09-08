@@ -9,6 +9,9 @@ export function normalizeSocialEligibility(profile = {}) {
 }
 
 export function canUseSocialFeatures(profile = {}, appSettings = {}) {
+  if (profile.account_restricted) {
+    return { allowed: false, reason: 'account_restricted' };
+  }
   if (!appSettings.social_features_enabled) {
     return { allowed: false, reason: 'social_disabled' };
   }
@@ -49,5 +52,6 @@ export const REPORT_CATEGORIES = [
 
 export const RATE_LIMITS = {
   friend_request_per_hour: 10,
-  report_per_day: 5
+  report_per_day: 5,
+  username_lookup_per_hour: 30
 };

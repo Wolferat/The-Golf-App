@@ -28,10 +28,10 @@
     'Content-Type':'application/json',
     ...(session?.access_token?{Authorization:'Bearer '+session.access_token}:{})
   });
-  const readPhoto=file=>new Promise((resolve,reject)=>{
+  const readPhoto=(file,{maxBytes=2*1024*1024,label='Review photos'}={})=>new Promise((resolve,reject)=>{
     if(!file)return resolve(null);
-    if(file.size>2*1024*1024)return reject(Error('Review photos must be 2 MB or smaller.'));
-    if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return reject(Error('Review photos must be JPEG, PNG, or WebP.'));
+    if(file.size>maxBytes)return reject(Error(`${label} must be ${Math.round(maxBytes/(1024*1024))} MB or smaller.`));
+    if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return reject(Error(`${label} must be JPEG, PNG, or WebP.`));
     const reader=new FileReader();
     reader.onload=()=>resolve(reader.result);
     reader.onerror=()=>reject(Error('Could not read that photo.'));
@@ -170,6 +170,20 @@
             </div>
           </section>
           <section class="gallery-section">
+            <div class="section-kicker">Player photo contributions</div>
+            <h2>Share a photo for review</h2>
+            <p class="settings-note">Player contributions stay separate from reviews and official venue photos. Nothing is published automatically.</p>
+            <form class="form" id="contributionForm">
+              <label for="contributionPhoto">Photo (JPEG/PNG/WebP, 5 MB max)</label>
+              <input id="contributionPhoto" type="file" accept="image/jpeg,image/png,image/webp">
+              <label for="contributionCaption">Caption (optional)</label>
+              <input id="contributionCaption" maxlength="300">
+              <button class="button" type="submit">Submit for review</button>
+              <p class="status" id="contributionStatus"></p>
+            </form>
+            <div id="contributionList"></div>
+          </section>
+          <section class="gallery-section">
             <div class="section-kicker">Official venue photos</div>
             <h2>From the official venue website</h2>
             ${official.length?`<div class="photo-grid">${official.map(p=>`<figure><img src="${escape(p.image_url)}" alt="${escape(listing.title)}" loading="lazy" referrerpolicy="no-referrer"><figcaption>From the official venue website${p.source_url?` · <a href="${escape(p.source_url)}" target="_blank" rel="noreferrer">${escape(p.source_name||'Official site')}</a>`:''}</figcaption></figure>`).join('')}</div>`:'<p class="settings-note">No official venue photos have been approved yet. Player review photos stay attached to reviews, not this gallery.</p>'}
@@ -215,6 +229,8 @@
             ${website?`<a class="button" href="${escape(website)}" target="_blank" rel="noreferrer">Official website</a>`:''}
             ${registration?`<a class="button ghost" href="${escape(registration)}" target="_blank" rel="noreferrer">Official registration</a>`:''}
             ${directionsUrl?`<a class="button ghost" href="${escape(directionsUrl)}" target="_blank" rel="noreferrer">Directions</a>`:''}
+            <button class="button ghost" type="button" id="shareListing">Share listing</button>
+            ${listing.starts_at?`<button class="button ghost" type="button" id="exportCalendar">Add to calendar</button>`:''}
           </div>
           ${!website&&!registration?'<p class="settings-note">Official website and registration links have not been verified yet.</p>':''}
           <p class="plan-note">${escape(listing.address||listing.city||'Location not provided')}${listing.phone?` · ${escape(listing.phone)}`:''}</p>
@@ -281,19 +297,64 @@
       $('#reviewForm')?.scrollIntoView({behavior:'smooth',block:'center'});
     });
 
-    const findBtn=$('#findOfficialPhotos');
+    const actionStatus=$('#listingActionStatus');
     const saveBtn=$('#saveListing');
     if(saveBtn){
       saveBtn.onclick=async()=>{
-        const s=$('#listingActionStatus');
-        s.textContent='Saving...';
+        actionStatus.textContent='Saving...';
         try{
           const r=await fetch('/api/saved-listings',{method:'POST',headers:authHeaders(),body:JSON.stringify({listing_id:id})});
           const d=await r.json().catch(()=>({}));
           if(!r.ok)throw Error(d.error||'Could not save listing.');
-          s.textContent='Listing saved.';
+          actionStatus.textContent='Listing saved.';
           saveBtn.disabled=true;
-        }catch(err){s.textContent=err.message}
+        }catch(err){actionStatus.textContent=err.message}
+      };
+    }
+    const shareBtn=$('#shareListing');
+    if(shareBtn){
+      shareBtn.onclick=async()=>{
+        const url=location.origin+'/listing?id='+encodeURIComponent(id);
+        try{
+          if(navigator.share){
+            await navigator.share({title:listing.title,text:'Golf listing on Golfolio',url});
+            actionStatus.textContent='Shared.';
+          }else{
+            await navigator.clipboard.writeText(url);
+            actionStatus.textContent='Link copied.';
+          }
+        }catch(err){
+          if(err?.name!=='AbortError')actionStatus.textContent=err.message||'Could not share.';
+        }
+      };
+    }
+    const calendarBtn=$('#exportCalendar');
+    if(calendarBtn&&listing.starts_at){
+      calendarBtn.onclick=()=>{
+        const fmtDate=v=>String(v||'').replace(/-/g,'');
+        const fmtDateTime=v=>new Date(v).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');
+        const start=listing.starts_at_date_only?fmtDate(listing.starts_at):fmtDateTime(listing.starts_at);
+        const endValue=listing.ends_at||listing.starts_at;
+        const end=listing.ends_at_date_only||listing.starts_at_date_only?fmtDate(endValue):fmtDateTime(endValue);
+        const lines=[
+          'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Golfolio//Listing Export//EN',
+          'BEGIN:VEVENT',
+          `UID:${listing.id}@golfolio`,
+          `DTSTAMP:${fmtDateTime(new Date().toISOString())}`,
+          listing.starts_at_date_only?`DTSTART;VALUE=DATE:${start}`:`DTSTART:${start}`,
+          listing.ends_at_date_only||listing.starts_at_date_only?`DTEND;VALUE=DATE:${end}`:`DTEND:${end}`,
+          `SUMMARY:${String(listing.title||'Golf event').replace(/[,\\;]/g,' ')}`,
+          listing.city?`LOCATION:${String(listing.city).replace(/[,\\;]/g,' ')}`:null,
+          `DESCRIPTION:${location.href}`,
+          'END:VEVENT','END:VCALENDAR'
+        ].filter(Boolean);
+        const blob=new Blob([`${lines.join('\r\n')}\r\n`],{type:'text/calendar'});
+        const link=document.createElement('a');
+        link.href=URL.createObjectURL(blob);
+        link.download=`${String(listing.title||'golf-event').replace(/[^\w\-]+/g,'-')}.ics`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        actionStatus.textContent='Calendar file downloaded.';
       };
     }
     const reportBtn=$('#reportListing');
@@ -302,16 +363,16 @@
         const category=prompt('Report category: harassment, spam, inappropriate_content, impersonation, safety_concern, other');
         if(!category)return;
         const details=prompt('Optional details (max 2000 characters)')||'';
-        const s=$('#listingActionStatus');
-        s.textContent='Submitting report...';
+        actionStatus.textContent='Submitting report...';
         try{
           const r=await fetch('/api/social',{method:'POST',headers:authHeaders(),body:JSON.stringify({action:'report',reported_listing_id:id,category,details})});
           const d=await r.json().catch(()=>({}));
           if(!r.ok)throw Error(d.error||'Could not submit report.');
-          s.textContent='Report submitted.';
-        }catch(err){s.textContent=err.message}
+          actionStatus.textContent='Report submitted.';
+        }catch(err){actionStatus.textContent=err.message}
       };
     }
+    const findBtn=$('#findOfficialPhotos');
     if(findBtn){
       findBtn.onclick=async()=>{
         const s=$('#officialPhotoStatus');
@@ -324,6 +385,38 @@
           s.textContent=d.message||'Saved as pending. Nothing was published.';
         }catch(err){s.textContent=err.message;findBtn.disabled=false}
       };
+    }
+    const contributionForm=$('#contributionForm');
+    const contributionList=$('#contributionList');
+    const loadContributions=async()=>{
+      if(!contributionList)return;
+      try{
+        const r=await fetch('/api/photo-contributions?listing_id='+encodeURIComponent(id),{headers:authHeaders()});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok)throw Error(d.error||'Could not load contributions.');
+        const rows=(d.contributions||[]).filter(row=>row.listing_id===id);
+        contributionList.innerHTML=rows.length?rows.map(row=>`<div class="contribution-card"><p><strong>${escape(row.status)}</strong> · ${new Date(row.created_at).toLocaleDateString()}${row.caption?` · ${escape(row.caption)}`:''}</p>${row.preview_url?`<img class="review-photo" src="${escape(row.preview_url)}" alt="" loading="lazy">`:''}</div>`).join(''):'<p class="settings-note">No contributions submitted yet for this listing.</p>';
+      }catch(err){
+        contributionList.innerHTML=`<p class="settings-note">${escape(err.message)}</p>`;
+      }
+    };
+    if(contributionForm){
+      contributionForm.onsubmit=async e=>{
+        e.preventDefault();
+        const s=$('#contributionStatus');
+        s.textContent='Uploading...';
+        try{
+          const photo=await readPhoto($('#contributionPhoto').files[0],{maxBytes:5*1024*1024,label:'Contribution photos'});
+          if(!photo)throw Error('Choose a photo first.');
+          const r=await fetch('/api/photo-contributions',{method:'POST',headers:authHeaders(),body:JSON.stringify({listing_id:id,caption:$('#contributionCaption').value.trim(),data_url:photo})});
+          const d=await r.json().catch(()=>({}));
+          if(!r.ok)throw Error(d.error||'Could not submit photo.');
+          s.textContent='Submitted for review.';
+          contributionForm.reset();
+          loadContributions();
+        }catch(err){s.textContent=err.message}
+      };
+      loadContributions();
     }
   })().catch(err=>fail(err.message));
 })();

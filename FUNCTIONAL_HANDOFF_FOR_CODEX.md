@@ -6,48 +6,97 @@
 - **Baseline:** `3d775c86c2ab35fb2bd08b1781f7638feb1047f0` (from `origin/cursor/venue-community-reviews-20b8`)
 - **Production:** not changed — no deploy, no production migrations, no Supabase production edits, no Apple submission
 
-## Completed functionality
+**This branch is not ready for visual-only finishing.** Core functional flows are implemented end-to-end in code, but several owner-configuration surfaces remain SQL-only, database integration tests were skipped in this workspace, and prompt-based moderation/report UX still needs Codex polish.
+
+---
+
+## Requirement audit (original scope)
+
+Status key: **Implemented** = working API + wired UI in this branch. **Partial** = backend/schema exists but admin UI, device QA, or owner config is incomplete. **Blocked** = depends on production migration, owner decision, or external service not configured here.
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Shared discovery categories (All Golf / Courses / Tournaments / Simulators / Practice) | **Implemented** | `lib/catalog-categories.js`, explore board in `index.html`, tests in `scripts/catalog-categories.test.mjs` |
+| Manual US city/ZIP lookup with honest distant handling | **Implemented** | `/api/location`, `lib/us-location.js`, TX ZIP index, optional `GOOGLE_GEOCODING_API_KEY` |
+| Event timezone + date-only support | **Implemented** | `lib/event-timezone.js`, migration `09-event-timezone-migration.sql`, admin listing editor |
+| Saved listings (ownership, uniqueness, unavailable targets) | **Implemented** | migration `10`, `/api/saved-listings`, Settings saved list + listing detail Save button |
+| Private rounds only (migration + API + UI copy) | **Implemented** | migration `11`, API forces `visibility: private`, round modal copy updated, Settings privacy notice |
+| Round owner edit/delete + stats beyond 50-row history | **Implemented** | `lib/rounds.js`, `api/player.js` `update_round`/`delete_round`, hub edit/delete buttons, `scripts/rounds.test.mjs` |
+| Close legacy player discovery bypass | **Implemented** | `api/player.js` `view=players` requires exact username, routes through `lib/social-discovery.js`, empty search returns 400 |
+| Exact-username discovery (no wildcards, no empty directory) | **Implemented** | `lib/social-discovery.js`, `/api/social?view=discovery`, rate limits via `social_rate_events` + `lib/rate-limit.js` |
+| Adult self-attestation before social features | **Implemented** | migration `12`, `/api/social` `attest_adult`, Players page gate in `player-pages.js` |
+| Consent-based friendships (request/accept/decline) | **Implemented** | `player_friendships`, `/api/social`, Players page panels |
+| Cancel request, remove friend, block management | **Implemented** | `/api/social` `cancel_friend_request`, `remove_friend`, `block`/`unblock`, `view=blocks`, UI in `player-pages.js` |
+| Unguessable revocable invitations | **Implemented** | migration `15`, `lib/invitations.js`, `/api/social` invitation create/revoke/accept, UI in `player-pages.js` |
+| Duplicate/simultaneous request prevention + block recheck on accept | **Implemented** | `existingFriendshipPair` checks in `api/social.js`, `blockedEitherWay` on accept |
+| Reporting/blocking without social eligibility | **Implemented** | `canReportOrBlock()` in `lib/social.js`, listing detail report, `/api/social` report/block actions |
+| Moderation queue, actions, evidence history, account restrictions | **Partial** | `/api/moderation.js`, migration `15`, admin section in `player-pages.js` listings page — **UI uses prompts**; owner must apply migration before live use |
+| Restriction enforcement across endpoints | **Partial** | `account_restricted` enforced on rounds, reviews, photo submit, social discovery; report/block exempt — **not every legacy write path audited on device** |
+| Photo contributions (separate from reviews/official photos) | **Implemented** | migration `13`, `/api/photo-contributions`, listing detail form + status list |
+| Photo decode/validate/resize/strip metadata + storage rollback | **Implemented** | `lib/contribution-photos.js` (sharp pipeline), MIME rejection, rollback on DB failure |
+| Admin contribution review queue | **Implemented** | `/api/photo-contributions?view=admin_queue`, admin button in listings moderation section |
+| Account deletion lifecycle (reauth, steps, retry, retention purge) | **Partial** | `lib/account-deletion.js`, `/api/account`, `/api/purge-evidence` cron in `vercel.json` — **requires migration 14–15 + owner gates before production** |
+| Support/community configuration surfaced to players | **Partial** | Schema + `/api/social?view=support` + Settings “Help and safety” links — **admin Company settings UI does not edit `player_support_*` / `community_standards_url` / `safety_help_url` (SQL/app_settings only)** |
+| Share listing + calendar export on detail page | **Implemented** | `listing-page.js` Share + ICS download handlers |
+| Authentication / email change / password reset | **Implemented** (web) | `index.html` sign-in/sign-up/forgot/reset flows; Settings email change via `/api/settings` — **native deep links not implemented** |
+| Saved-listings presentation | **Partial** | Settings list + detail save work — **no saved badge on explore cards** |
+| Player/admin flows (hub, rounds, listings moderation, company settings) | **Partial** | `player-pages.js` routes exist and call APIs — **prompt-based report/moderation UX; index.html hub still has legacy follow UI in embedded modal path** |
+| Executable DB integration tests | **Partial** | `scripts/functional-db.integration.test.mjs` runs when `SUPABASE_FUNCTIONAL_TEST_*` set — **3 tests skipped here (no isolated DB)** |
+| Visual polish | **Deferred to Codex** | Functional contracts above; keep current styling direction |
+
+---
+
+## Working end-to-end (code complete in branch)
 
 ### Discovery, categories, location, event dates
-- Shared category mapping: All Golf | Courses (`course`) | Tournaments (`tournament`, `charity`, `corporate`) | Simulators (`simulator`) | Practice & Lessons (`training`)
-- Explore board applies user kind prefs and grouped tournament filter
-- Manual US city/ZIP lookup via `/api/location` with local TX ZIP index; optional `GOOGLE_GEOCODING_API_KEY` for unresolved ZIPs (cached, rate-limited)
-- Distant locations resolve honestly but do not expand the Sherman launch catalog; listings without coordinates remain visible when location filtering would hide everything
-- Event timezone utilities with `America/Chicago` default, date-only support, unchanged-save preservation, DST/date-only expiration tests
-- Admin listing save uses timezone-aware parsing instead of raw UTC `datetime-local` shift
+- Shared category mapping and explore filters
+- `/api/location` with local TX ZIP index; optional Google geocoding
+- Event timezone utilities; admin listing save preserves timezone semantics
 
 ### Saved listings and private rounds
-- `saved_listings` table/API with ownership, uniqueness, graceful unavailable targets
-- All existing rounds migrated to `private`; RLS enforces owner-only access
-- Round creation forced to `private` in API and hub UI
-- One-time rounds privacy notice in Settings
+- `saved_listings` CRUD with graceful unavailable targets
+- All rounds private; owner edit/delete; stats from full history (`fetchRoundStats`)
 
-### Social foundation
-- Adult-only **self-attestation** (`social_eligibility_status`, timestamp, policy version) — not identity verification
-- `social_features_enabled` app setting default **false**
-- Legacy `player_follows` preserved as inactive historical data; no auto-friendship conversion
-- Consent-based `player_friendships` (request/accept/decline)
-- `player_blocks`, `player_reports` with rate limits
-- Reporting/blocking available without social eligibility; ineligible users excluded from discovery
-- `/api/social` endpoints; Players page wired to attestation + friend requests
+### Social foundation (Phase 2 completion)
+- Legacy `/api/player?view=players` no longer browsable; exact username only
+- `/api/social?view=discovery` — empty search returns `{ players: [] }`, wildcard rejected, rate limited
+- Friendship lifecycle: request, accept, decline, cancel, remove, block/unblock, invitations
+- Reporting available without attestation; discovery requires attestation + owner flag
+
+### Moderation
+- `/api/moderation` — queue, open/close report, restrict/clear account, action history
+- `moderation_actions` table; `account_restricted` on profiles
+- Admin moderation section on listings page (reports + photo contribution queue)
 
 ### Photo contributions
-- Separate `listing_photo_contributions` table and `player-contributions` private bucket
-- `/api/photo-contributions` for player submit + admin review
-- Reuses existing validation/storage patterns; no auto-publish or cover promotion
+- Player submit with sharp normalization (rotate, resize max 1600px, JPEG output, metadata stripped)
+- MIME declared in data URL validated; corrupt bytes rejected
+- Storage rollback if DB insert fails; signed preview URLs; admin review API
 
 ### Account lifecycle
-- Self-service deletion via `/api/account` gated by `account_deletion_enabled` (default false)
-- Removes auth access and ordinary account-owned data; cleans friendships/blocks/reports/follows/rounds/reviews/saved listings
-- Narrow `moderation_evidence` retention with configurable `moderation_evidence_retention_days`
-- Test mode via `GOLFOLIO_DELETION_TEST_MODE=true` with explicit retention fallback
+- Password reauthentication before deletion
+- Step-tracked deletion with `cleanup_pending` vs `completed`
+- Storage cleanup with reported failures; `retry_cleanup` action
+- `/api/purge-evidence` cron scheduled in `vercel.json` (daily 07:20 UTC)
 
-### Support/community configuration fields
-Added to `app_settings` (unset by default except where noted):
-- `player_support_email`
-- `player_support_url`
-- `community_standards_url`
-- `safety_help_url`
+### Listing detail actions
+- Save listing, share/copy link, ICS calendar export, report listing, photo contribution form + status
+
+---
+
+## API / schema scaffolding (needs migration + owner config before production)
+
+These exist in code/SQL but are **not live** until migrations run and owner toggles are set:
+
+| Item | Default | Notes |
+|------|---------|-------|
+| `social_features_enabled` | false | Enable after policy review |
+| `account_deletion_enabled` | false | Enable after retention decision |
+| `moderation_evidence_retention_days` | null | Required before production deletion |
+| `player_support_email/url`, `community_standards_url`, `safety_help_url` | null | Set in `app_settings`; no Company settings form fields yet |
+| Migrations 09–15 | not applied here | See ordered list below |
+
+---
 
 ## Ordered migrations (prepare only — do not run in production from this handoff)
 
@@ -59,69 +108,67 @@ Run in Supabase SQL Editor after existing migrations through `signed-in-data-gat
 4. `supabase/12-social-foundation-migration.sql`
 5. `supabase/13-photo-contributions-migration.sql`
 6. `supabase/14-account-lifecycle-migration.sql`
+7. `supabase/15-social-moderation-completion-migration.sql` — invitations, rate events, moderation actions, account restrictions, expanded deletion requests
 
-## Environment variable names (never values)
+---
+
+## Environment variables (names only)
 
 Required existing:
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GOLFOLIO_APP_URL`
-- `CRON_SECRET`
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- `GOLFOLIO_APP_URL`, `CRON_SECRET`
 
-Optional/new for this release:
-- `GOOGLE_GEOCODING_API_KEY` — optional distant ZIP/city resolution; local TX index used first
-- `GOLFOLIO_DELETION_TEST_MODE` — enables local deletion flow testing without production owner gates
-- `MODERATION_EVIDENCE_RETENTION_DAYS_TEST` — overrides test retention days (default 30 in test mode)
+Optional/new:
+- `GOOGLE_GEOCODING_API_KEY` — distant ZIP/city resolution
+- `GOLFOLIO_DELETION_TEST_MODE` — local deletion testing without production owner gates
+- `MODERATION_EVIDENCE_RETENTION_DAYS_TEST` — test retention override
+- `SUPABASE_FUNCTIONAL_TEST_URL` + `SUPABASE_FUNCTIONAL_TEST_SERVICE_ROLE_KEY` — isolated DB integration tests
 
-Owner-configured in `app_settings` (not env vars):
-- `social_features_enabled` (default false)
-- `social_eligibility_policy_version`
-- `account_deletion_enabled` (default false)
-- `moderation_evidence_retention_days` (null until owner decides)
-- `player_support_email`, `player_support_url`, `community_standards_url`, `safety_help_url`
-
-## Feature gates and defaults
-
-| Gate | Default | Notes |
-|------|---------|-------|
-| `social_features_enabled` | false | Enable after policy review + functional tests |
-| `social_eligibility_status` | unknown | Existing accounts must self-attest before social discovery/requests |
-| `account_deletion_enabled` | false | Enable after retention decision |
-| `moderation_evidence_retention_days` | null | Must be set before production deletion |
-| Round visibility | private only | Migration + API enforcement |
-| Legacy follows | inactive | Historical only |
+---
 
 ## Test results (this cloud workspace)
 
 | Suite | Result |
 |-------|--------|
-| `npm run check:functional` | **21/21 pass** |
-| `npm run check:photos` | **21/21 pass** (after `npm install`) |
+| `npm run check:functional` | **27 pass, 3 skipped** (DB integration skipped — no test Supabase) |
+| `npm run check:photos` | **21/21 pass** |
 | `npm run check:experience` | **7/7 pass** |
 | `npm run check:mobile` | **3/3 pass** |
 | `npm run web:build` | **pass** |
-| `npm run ios:sync` | **pass** (Linux — validates sync only, not Xcode/device) |
 
-## Tests not run
+### Tests actually run (unit/isolated)
+- Category mapping, event timezone, US location, social gates, exact username rules
+- Account lifecycle helpers, round stats (>50 rounds), contribution photo pipeline
+- Photo approval, experience, mobile bundle checks
 
-- Supabase RLS/storage policy integration against a live database (**NOT RUN** — no confirmed isolated Supabase project in this workspace)
-- End-to-end API tests against production or staging Supabase (**NOT RUN**)
-- Physical iPhone / Xcode validation (**NOT RUN** on Linux cloud agent)
+### Tests skipped (not proof of integration)
+- `functional-db.integration.test.mjs` — **3 cases skipped** without `SUPABASE_FUNCTIONAL_TEST_*`
+- Explicit skip notice test documents missing config (does not validate RLS/storage live)
 
-To run database integration later:
-1. Boot isolated local Supabase or confirmed dev project
-2. Apply migrations 09–14 in order on a fresh schema through 08
-3. Set `SUPABASE_FUNCTIONAL_TEST_URL` and add executable DB integration tests (placeholder documents current NOT RUN state)
+### Tests not run
+- End-to-end against staging/production Supabase
+- Physical iPhone / Xcode device QA
+- `npm run ios:sync` on this Linux agent turn
 
-## Outstanding policy/configuration decisions (owner)
+To run DB integration later:
+1. Boot isolated Supabase project; apply migrations 09–15
+2. Export `SUPABASE_FUNCTIONAL_TEST_URL` and `SUPABASE_FUNCTIONAL_TEST_SERVICE_ROLE_KEY`
+3. Re-run `npm run check:functional`
 
-1. Set real player support contact URLs/emails in Company Settings (do not use placeholders)
-2. Decide `moderation_evidence_retention_days` before enabling production deletion
-3. Enable `account_deletion_enabled` only after retention testing
-4. Enable `social_features_enabled` only after policy review and device testing
-5. Expand local ZIP index or enable `GOOGLE_GEOCODING_API_KEY` if full-US manual lookup is required beyond bundled TX/national sample ZIPs
-6. Codex visual/copy pass for attestation language, empty states, report UX (currently functional prompts)
+---
+
+## Outstanding dependencies (owner / Codex)
+
+1. Apply migrations 09–15 on isolated/staging Supabase before functional QA
+2. Set `player_support_*`, `community_standards_url`, `safety_help_url` in `app_settings` (or add Company settings fields)
+3. Decide retention days; enable `account_deletion_enabled` only after testing
+4. Enable `social_features_enabled` only after policy review
+5. Replace prompt-based report/moderation UX with polished components (keep API contracts)
+6. Add Company settings UI for social/deletion/support toggles (currently SQL-only)
+7. Remove or update legacy follow UI in `index.html` embedded hub modal (`renderPlayers` still references follow)
+8. Device QA: auth deep links, keyboard, Capacitor Browser external links, photo upload to private bucket
+
+---
 
 ## Local startup
 
@@ -131,14 +178,7 @@ npm install
 npm run web:build
 npm run check:functional
 npm run check:photos
-npm run preview:live   # or deploy preview via Vercel with env vars configured
-```
-
-For Capacitor sync after web changes:
-
-```bash
-npm run ios:sync
-npm run ios:open   # Mac only
+npm run preview:live
 ```
 
 Deletion flow local test:
@@ -146,34 +186,16 @@ Deletion flow local test:
 ```bash
 export GOLFOLIO_DELETION_TEST_MODE=true
 # Optionally: export MODERATION_EVIDENCE_RETENTION_DAYS_TEST=30
-# Run against isolated Supabase with migrations 09–14 applied
+# Run against isolated Supabase with migrations 09–15 applied
 ```
 
-## Native/device checks remaining for Codex (Mac/iPhone)
-
-- [ ] Sign in / sign up / email verification / password reset deep links
-- [ ] Location permission prompt on “Use location” and manual city/ZIP fallback
-- [ ] Keyboard behavior on auth forms and round logging
-- [ ] External links (official website, registration, directions, tel:) open correctly in Capacitor Browser/Safari
-- [ ] App resume and session expiry handling
-- [ ] Adult self-attestation gate before social discovery
-- [ ] Friend request send/accept/decline
-- [ ] Report listing flow (replace prompt UI with polished copy)
-- [ ] Save listing from detail page
-- [ ] Account deletion in test configuration
-- [ ] Photo contribution upload to private bucket
-- [ ] Verify listing covers and official photo approval still work on device
+---
 
 ## Visual work deferred to Codex
 
-This pass intentionally preserved existing visual direction. Codex should finish:
-- Copy for self-attestation, privacy notice, empty/distant-location states
-- Report/block UI (replace `prompt()` flows)
-- Saved listings affordance polish on cards/detail
-- Settings layout for social/support/deletion sections
-- Complete display/interaction finish without changing functional contracts above
+Preserve current styling direction. Codex should finish copy, empty states, and replace prompt flows — **without changing the functional API contracts above**. Do not mark launch-ready until migrations are applied on staging and device QA passes.
 
-## Conflict notes vs stale handoff docs
+## Conflict notes
 
-- `CURSOR_HANDOFF.md` describes photo-approval work already at baseline `3d775c86`; this branch extends rather than replaces that system
-- Do not follow older `cursor/settings-page-20b8` instructions; this branch is from venue-community baseline only
+- `CURSOR_HANDOFF.md` describes photo-approval baseline work; this branch extends it
+- Do not follow `cursor/settings-page-20b8`; this branch is from venue-community baseline only

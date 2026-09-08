@@ -42,6 +42,12 @@
     if(!r.ok)throw Error(d.error||'Account request failed.');
     return d;
   };
+  const moderationApi=async(path='',options={})=>{
+    const r=await fetch('/api/moderation'+path,{...options,headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json',...(options.headers||{})}});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Moderation request failed.');
+    return d;
+  };
   const EVENT_TZ='America/Chicago';
   const dtLocal=(value,dateOnly)=>{
     if(!value)return'';
@@ -117,7 +123,7 @@
     profile=(await api('?view=me')).profile||{};
     const body=$('#pageBody');
     const social=await socialApi('?view=status').catch(()=>({eligibility:{status:'unknown'},social_features_enabled:false}));
-    body.innerHTML=`<section class="card"><div class="kicker">Social</div><h2>Golf crew</h2><p class="settings-note">Adult self-attestation is required before friend requests and social discovery. Reporting and blocking stay available from listing and player actions.</p><div id="socialGate"></div><label for="playerSearch"><strong>Search player usernames</strong></label><input class="search" id="playerSearch" maxlength="24" placeholder="Search by username"><div class="players" id="playerResults"><p>Loading players...</p></div><div id="friendRequests"></div></section>`;
+    body.innerHTML=`<section class="card"><div class="kicker">Social</div><h2>Golf crew</h2><p class="settings-note">Look up players by exact username only. Empty searches do not return a directory. Adult self-attestation is required before friend requests, invitations, and discovery.</p><div id="socialGate"></div><div class="action-row"><input class="search" id="playerSearch" maxlength="24" placeholder="Exact username"><button class="button" id="playerSearchButton" type="button">Look up</button></div><div class="players" id="playerResults"><p>Enter an exact username to look up one eligible player.</p></div><div id="friendRequests"></div><div id="friendList"></div><div id="blockedList"></div><div id="invitationPanel"></div></section>`;
     const gate=$('#socialGate');
     if(!social.social_features_enabled){
       gate.innerHTML='<p class="notice">Social features are disabled until the owner enables them after policy review.</p>';
@@ -127,26 +133,50 @@
     }else{
       gate.innerHTML='<p class="settings-note">Social self-attestation complete.</p>';
     }
-    const search=$('#playerSearch'),results=$('#playerResults'),requests=$('#friendRequests');
+    const search=$('#playerSearch'),results=$('#playerResults'),requests=$('#friendRequests'),friends=$('#friendList'),blocks=$('#blockedList'),invites=$('#invitationPanel');
+    const loadBlocks=async()=>{
+      try{
+        const d=await socialApi('?view=blocks');
+        blocks.innerHTML=d.blocks?.length?`<section class="card"><h3>Blocked players</h3>${d.blocks.map(x=>`<div class="player"><div class="player-main"><strong>${escape(x.user?.username||'Player')}</strong></div><button class="button ghost" data-unblock="${escape(x.user_id)}">Unblock</button></div>`).join('')}</section>`:'';
+        blocks.querySelectorAll('[data-unblock]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'unblock',user_id:b.dataset.unblock})});loadBlocks()}catch(e){b.disabled=false;alert(e.message)}});
+      }catch{}
+    };
+    const loadInvites=async()=>{
+      if(!social.social_features_enabled||social.eligibility?.status!=='eligible'){invites.innerHTML='';return}
+      try{
+        const d=await socialApi('?view=invitations');
+        invites.innerHTML=`<section class="card"><h3>Invitations</h3><button class="button" id="createInvite" type="button">Create invitation link</button><div id="inviteToken"></div>${(d.invitations||[]).map(x=>`<p>${escape(x.status)} · expires ${escape(new Date(x.expires_at).toLocaleDateString())}${x.status==='active'?` <button class="button ghost" data-revoke="${escape(x.id)}">Revoke</button>`:''}</p>`).join('')}</section>`;
+        $('#createInvite').onclick=async()=>{try{const created=await socialApi('',{method:'POST',body:JSON.stringify({action:'create_invitation'})});$('#inviteToken').innerHTML=`<p class="settings-note">Share this token once: <code>${escape(created.token)}</code></p>`;loadInvites()}catch(e){alert(e.message)}};
+        invites.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=async()=>{try{await socialApi('',{method:'POST',body:JSON.stringify({action:'revoke_invitation',invitation_id:b.dataset.revoke})});loadInvites()}catch(e){alert(e.message)}});
+      }catch{}
+    };
     const loadRequests=async()=>{
       try{
         const d=await socialApi('?view=requests');
-        const pending=(d.friendships||[]).filter(x=>x.status==='pending'&&x.addressee_id===profile.id);
-        requests.innerHTML=pending.length?`<section class="card"><h3>Friend requests</h3>${pending.map(x=>`<div class="player"><div class="player-main"><strong>Request pending</strong></div><div class="action-row"><button class="button" data-fid="${escape(x.id)}" data-decision="accept">Accept</button><button class="button ghost" data-fid="${escape(x.id)}" data-decision="decline">Decline</button></div></div>`).join('')}</section>`:'';
-        requests.querySelectorAll('[data-fid]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'respond_friendship',friendship_id:b.dataset.fid,decision:b.dataset.decision})});loadRequests();load()}catch(e){b.disabled=false;alert(e.message)}});
+        const pending=(d.friendships||[]).filter(x=>x.status==='pending'&&x.incoming);
+        const accepted=(d.friendships||[]).filter(x=>x.status==='accepted');
+        requests.innerHTML=pending.length?`<section class="card"><h3>Incoming requests</h3>${pending.map(x=>`<div class="player"><div class="player-main"><strong>${escape(x.other_user?.username||'Player')}</strong></div><div class="action-row"><button class="button" data-fid="${escape(x.id)}" data-decision="accept">Accept</button><button class="button ghost" data-fid="${escape(x.id)}" data-decision="decline">Decline</button></div></div>`).join('')}</section>`:'';
+        friends.innerHTML=accepted.length?`<section class="card"><h3>Friends</h3>${accepted.map(x=>`<div class="player"><div class="player-main"><strong>${escape(x.other_user?.username||'Player')}</strong></div><button class="button ghost" data-remove="${escape(x.id)}">Remove</button></div>`).join('')}${d.friendships.filter(x=>x.outgoing).map(x=>`<div class="player"><div class="player-main"><strong>${escape(x.other_user?.username||'Player')} · pending</strong></div><button class="button ghost" data-cancel="${escape(x.id)}">Cancel request</button></div>`).join('')}</section>`:'';
+        requests.querySelectorAll('[data-fid]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'respond_friendship',friendship_id:b.dataset.fid,decision:b.dataset.decision})});loadRequests()}catch(e){b.disabled=false;alert(e.message)}});
+        friends.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{if(!confirm('Remove this friend?'))return;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'remove_friend',friendship_id:b.dataset.remove})});loadRequests()}catch(e){alert(e.message)}});
+        friends.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{try{await socialApi('',{method:'POST',body:JSON.stringify({action:'cancel_friend_request',friendship_id:b.dataset.cancel})});loadRequests()}catch(e){alert(e.message)}});
       }catch{}
     };
     const load=async()=>{
-      if(!social.social_features_enabled||social.eligibility?.status!=='eligible'){results.innerHTML='<p>Complete social self-attestation to search players.</p>';return}
+      if(!social.social_features_enabled||social.eligibility?.status!=='eligible'){results.innerHTML='<p>Complete social self-attestation to look up players.</p>';return}
+      const term=search.value.trim();
+      if(!term){results.innerHTML='<p>Enter an exact username to look up one eligible player.</p>';return}
       results.innerHTML='<p>Searching...</p>';
       try{
-        const d=await socialApi('?view=discovery&q='+encodeURIComponent(search.value.trim()));
-        results.innerHTML=d.players?.length?d.players.map(p=>`<div class="player"><div class="avatar">${avatar(p)}</div><div class="player-main"><strong>${escape(p.username)}</strong><small>${escape(p.city||p.home_course||'Golfolio player')}</small></div><button class="button" data-id="${p.id}">Send request</button></div>`).join(''):`<div class="empty"><h2>No eligible players found.</h2><p>Try another username.</p></div>`;
+        const d=await socialApi('?view=discovery&q='+encodeURIComponent(term));
+        results.innerHTML=d.players?.length?d.players.map(p=>`<div class="player"><div class="avatar">${avatar(p)}</div><div class="player-main"><strong>${escape(p.username)}</strong><small>${escape(p.city||p.home_course||'Golfolio player')}</small></div><div class="action-row"><button class="button" data-id="${p.id}">Send request</button><button class="button ghost" data-block="${p.id}">Block</button></div></div>`).join(''):`<div class="empty"><h2>No eligible player found.</h2><p>Exact username matches only.</p></div>`;
         results.querySelectorAll('[data-id]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'friend_request',user_id:b.dataset.id})});b.textContent='Requested'}catch(e){b.disabled=false;alert(e.message)}});
+        results.querySelectorAll('[data-block]').forEach(b=>b.onclick=async()=>{if(!confirm('Block this player?'))return;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'block',user_id:b.dataset.block})});loadBlocks();load()}catch(e){alert(e.message)}});
       }catch(e){results.innerHTML=`<div class="notice">${escape(e.message)}</div>`}
     };
-    search.oninput=()=>{clearTimeout(search.timer);search.timer=setTimeout(load,250)};
-    loadRequests();load();
+    $('#playerSearchButton').onclick=load;
+    search.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();load()}};
+    loadBlocks();loadInvites();loadRequests();
   };
 
   const toggleRow=(id,title,copy,checked)=>`<label class="toggle-row" for="${id}"><div><strong>${title}</strong><span>${copy}</span></div><span class="switch"><input id="${id}" type="checkbox" ${checked?'checked':''}><span></span></span></label>`;
@@ -248,6 +278,12 @@
         </section>
 
         <section class="card">
+          <div class="kicker">Help and safety</div>
+          <h2>Support and community standards</h2>
+          <div id="supportLinks"><p>Loading support links...</p></div>
+        </section>
+
+        <section class="card">
           <div class="kicker">Data / security</div>
           <h2>Your information stays yours</h2>
           <p class="settings-note">Your settings are private to your account. You choose what to share with other golfers.</p>
@@ -338,6 +374,17 @@
       savedBox.innerHTML=rows.length?rows.map(x=>`<p><a href="/listing?id=${encodeURIComponent(x.listing_id)}">${escape(x.listing?.title||'Saved listing')}</a></p>`).join(''):'<p>No saved listings yet. Save listings from listing detail when available.</p>';
     }).catch(e=>{savedBox.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
 
+    const supportBox=$('#supportLinks');
+    fetch('/api/social?view=support',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json()).then(d=>{
+      const links=[
+        d.player_support_url?`<p><a href="${escape(d.player_support_url)}" target="_blank" rel="noreferrer">Player support</a></p>`:'',
+        d.community_standards_url?`<p><a href="${escape(d.community_standards_url)}" target="_blank" rel="noreferrer">Community standards</a></p>`:'',
+        d.safety_help_url?`<p><a href="${escape(d.safety_help_url)}" target="_blank" rel="noreferrer">Safety help</a></p>`:'',
+        d.player_support_email?`<p><a href="mailto:${escape(d.player_support_email)}">${escape(d.player_support_email)}</a></p>`:''
+      ].filter(Boolean);
+      supportBox.innerHTML=links.length?links.join(''):'<p class="settings-note">Support links have not been configured yet. Admins can set them in Company settings.</p>';
+    }).catch(e=>{supportBox.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
+
     const roundsNotice=$('#roundsPrivacyNotice');
     roundsNotice.innerHTML='<p class="notice">Round history is private to you in this release. Existing rounds were migrated to owner-only visibility.</p>';
 
@@ -347,8 +394,8 @@
         deletionPanel.innerHTML='<p class="settings-note">Account deletion is not enabled yet. Owner must configure retention and enable deletion.</p>';
         return;
       }
-      deletionPanel.innerHTML=`<form class="form" id="deleteAccountForm"><p class="settings-note">Deleting your account removes authentication access and ordinary profile data. Moderation evidence may be retained for a configured period.</p><label class="check"><input id="deleteConfirm" type="checkbox"><span>I understand this permanently deletes my account.</span></label><label for="deleteConfirmText">Type DELETE to confirm</label><input id="deleteConfirmText" maxlength="10" autocomplete="off"><button class="button" type="submit">Delete my account</button><p class="status" id="deleteStatus"></p></form>`;
-      $('#deleteAccountForm').onsubmit=async e=>{e.preventDefault();const s=$('#deleteStatus');s.textContent='Deleting account...';try{const result=await accountApi({method:'POST',body:JSON.stringify({action:'delete_account',confirm:true,confirm_text:$('#deleteConfirmText').value})});localStorage.removeItem('golfolio_session');s.textContent=result.message||'Account deleted.';setTimeout(()=>window.golfolioNavigate('/'),800)}catch(err){s.textContent=err.message}};
+      deletionPanel.innerHTML=`<form class="form" id="deleteAccountForm"><p class="settings-note">Deleting your account removes authentication access and ordinary profile data. Moderation evidence may be retained for a configured period.</p><label class="check"><input id="deleteConfirm" type="checkbox"><span>I understand this permanently deletes my account.</span></label><label for="deleteConfirmText">Type DELETE to confirm</label><input id="deleteConfirmText" maxlength="10" autocomplete="off"><label for="deletePassword">Confirm your current password</label><input id="deletePassword" type="password" autocomplete="current-password"><button class="button" type="submit">Delete my account</button><p class="status" id="deleteStatus"></p></form>`;
+      $('#deleteAccountForm').onsubmit=async e=>{e.preventDefault();const s=$('#deleteStatus');s.textContent='Deleting account...';try{const result=await accountApi({method:'POST',body:JSON.stringify({action:'delete_account',confirm:true,confirm_text:$('#deleteConfirmText').value,password:$('#deletePassword').value})});if(result.status==='cleanup_pending'){s.textContent=result.message||'Authentication removed. Storage cleanup is retryable.';return}localStorage.removeItem('golfolio_session');s.textContent=result.message||'Account deleted.';setTimeout(()=>window.golfolioNavigate('/'),800)}catch(err){s.textContent=err.message}};
     }).catch(e=>{deletionPanel.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
         try{
           $('#useLocation').checked=true;
@@ -653,6 +700,29 @@
         }catch(err){button.disabled=false;if(note)note.textContent=err.message;else alert(err.message)}
       });
     };
+    const mountModerationSection=async()=>{
+      try{
+        const moderation=await moderationApi('?view=queue');
+        const section=document.createElement('section');
+        section.className='card';
+        section.id='moderationQueue';
+        section.innerHTML=`<div class="kicker">Moderation</div><h2>Open reports</h2>${moderation.reports?.length?moderation.reports.slice(0,8).map(r=>`<div class="player"><div class="player-main"><strong>${escape(r.category)}</strong><small>${escape(r.status)} · ${escape(r.details||'No details')}</small></div><div class="action-row"><button class="button ghost" data-review="${escape(r.id)}">Review</button><button class="button ghost" data-close-report="${escape(r.id)}">Close</button>${r.reported_user_id?`<button class="button ghost" data-restrict="${escape(r.reported_user_id)}" data-report="${escape(r.id)}">Restrict account</button>`:''}</div></div>`).join(''):'<p class="settings-note">No open reports.</p>'}<div class="action-row"><button class="button ghost" id="loadPhotoContributions" type="button">Review photo contributions</button></div><div id="photoContributionQueue"></div>`;
+        body.prepend(section);
+        section.querySelectorAll('[data-review]').forEach(b=>b.onclick=async()=>{try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'open_review',report_id:b.dataset.review})});mountModerationSection()}catch(e){alert(e.message)}});
+        section.querySelectorAll('[data-close-report]').forEach(b=>b.onclick=async()=>{const note=prompt('Resolution note (optional)')||'';try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'close_report',report_id:b.dataset.closeReport,resolution_note:note})});mountModerationSection()}catch(e){alert(e.message)}});
+        section.querySelectorAll('[data-restrict]').forEach(b=>b.onclick=async()=>{const reason=prompt('Restriction reason','Community standards review')||'Community standards review';try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'restrict_account',user_id:b.dataset.restrict,report_id:b.dataset.report,reason})});mountModerationSection()}catch(e){alert(e.message)}});
+        section.querySelector('#loadPhotoContributions').onclick=async()=>{
+          const queue=section.querySelector('#photoContributionQueue');
+          queue.innerHTML='<p>Loading pending contributions...</p>';
+          try{
+            const data=await fetch('/api/photo-contributions?view=admin_queue&status=pending',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json());
+            queue.innerHTML=(data.contributions||[]).map(c=>`<div class="player"><div class="player-main"><strong>${escape(c.id)}</strong>${c.preview_url?`<img src="${escape(c.preview_url)}" alt="" style="max-width:120px;display:block;margin-top:8px">`:''}</div><div class="action-row"><button class="button" data-approve="${escape(c.id)}">Approve</button><button class="button ghost" data-reject="${escape(c.id)}">Reject</button></div></div>`).join('')||'<p class="settings-note">No pending contributions.</p>';
+            queue.querySelectorAll('[data-approve],[data-reject]').forEach(btn=>btn.onclick=async()=>{try{await fetch('/api/photo-contributions',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'review',contribution_id:btn.dataset.approve||btn.dataset.reject,decision:btn.dataset.approve?'approve':'reject'})});section.querySelector('#loadPhotoContributions').click()}catch(e){alert(e.message)}});
+          }catch(e){queue.innerHTML=`<p class="notice">${escape(e.message)}</p>`}
+        };
+      }catch{}
+    };
+    await mountModerationSection();
     await load('active');
   };
 
@@ -777,7 +847,9 @@
       snapshot.querySelectorAll('[data-hole]').forEach(button=>button.onclick=()=>drawStats(button.dataset.hole));
     };
     drawStats('eighteen');
-    history.innerHTML=`<h2>Round history</h2>${d.rounds?.length?d.rounds.map(r=>`<div class="round"><div><strong>${escape(r.course_name)}</strong><small>${new Date(r.played_on+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} · ${r.holes} holes${r.par?' · Par '+r.par:''}</small>${r.notes?`<p class="round-note">${escape(r.notes)}</p>`:''}</div><div class="score">${r.score}<small>${r.visibility==='private'?'Private':escape(r.visibility)}</small></div></div>`).join(''):`<div class="empty"><h2>Your story starts on the course.</h2><p>Log your first round to see your real scoring average and personal best.</p></div>`}`;
+    history.innerHTML=`<h2>Round history</h2>${d.rounds?.length?d.rounds.map(r=>`<div class="round"><div><strong>${escape(r.course_name)}</strong><small>${new Date(r.played_on+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} · ${r.holes} holes${r.par?' · Par '+r.par:''}</small>${r.notes?`<p class="round-note">${escape(r.notes)}</p>`:''}<div class="action-row"><button class="button ghost" type="button" data-edit-round="${escape(r.id)}">Edit</button><button class="button ghost" type="button" data-delete-round="${escape(r.id)}">Delete</button></div></div><div class="score">${r.score}<small>Private</small></div></div>`).join(''):`<div class="empty"><h2>Your story starts on the course.</h2><p>Log your first round to see your real scoring average and personal best.</p></div>`}`;
+    history.querySelectorAll('[data-delete-round]').forEach(button=>button.onclick=async()=>{if(!confirm('Delete this round?'))return;try{await api('',{method:'POST',body:JSON.stringify({action:'delete_round',round_id:button.dataset.deleteRound})});location.reload()}catch(e){alert(e.message)}});
+    history.querySelectorAll('[data-edit-round]').forEach(button=>button.onclick=async()=>{const round=d.rounds.find(x=>x.id===button.dataset.editRound);if(!round)return;const score=prompt('Score',round.score);if(score==null)return;const notes=prompt('Notes',round.notes||'');try{await api('',{method:'POST',body:JSON.stringify({action:'update_round',round:{id:round.id,score,notes}})});location.reload()}catch(e){alert(e.message)}});
   };
 
 

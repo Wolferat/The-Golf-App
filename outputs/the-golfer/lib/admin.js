@@ -12,7 +12,7 @@ export async function requireUser(req) {
   });
   if (!response.ok) return { error: { status: 401, body: { error: 'Sign in required.' } } };
   const user = await response.json();
-  const profileRes = await fetch(`${url}/rest/v1/profiles?id=eq.${user.id}&select=id,role,username,avatar`, {
+  const profileRes = await fetch(`${url}/rest/v1/profiles?id=eq.${user.id}&select=id,role,username,avatar,account_restricted,account_restriction_reason`, {
     headers: { apikey: anon, Authorization: `Bearer ${token}` }
   });
   const [profile] = await profileRes.json().catch(() => []);
