@@ -123,7 +123,7 @@ export default async function handler(req, res) {
           if (!course_name) course_name = listing.title || listing.venue_name || '';
         }
         if (!course_name || !Number.isInteger(score) || score < 20 || score > 200 || ![9,18].includes(holes)) return json(res, 400, { error: 'Add a course, a valid score, and either 9 or 18 holes.' });
-        const payload = { player_id: user.id, course_name, played_on: input.played_on || new Date().toISOString().slice(0,10), score, holes, par, putts: input.putts === '' ? null : Number(input.putts), fairways_hit: input.fairways_hit === '' ? null : Number(input.fairways_hit), greens_hit: input.greens_hit === '' ? null : Number(input.greens_hit), notes: String(input.notes || '').trim() || null, visibility: ['private','connections','public'].includes(input.visibility) ? input.visibility : 'private' };
+        const payload = { player_id: user.id, course_name, played_on: input.played_on || new Date().toISOString().slice(0,10), score, holes, par, putts: input.putts === '' ? null : Number(input.putts), fairways_hit: input.fairways_hit === '' ? null : Number(input.fairways_hit), greens_hit: input.greens_hit === '' ? null : Number(input.greens_hit), notes: String(input.notes || '').trim() || null, visibility: 'private' };
         if (listing_id) payload.listing_id = listing_id;
         try {
           const rows = await supabase('rounds', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) });
@@ -135,16 +135,8 @@ export default async function handler(req, res) {
           throw error;
         }
       }
-      if (action === 'follow') {
-        const target = String(req.body.following_id || '');
-        if (!target || target === user.id) return json(res, 400, { error: 'Choose another player to follow.' });
-        await supabase('player_follows', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ follower_id: user.id, following_id: target }) });
-        return json(res, 200, { ok: true });
-      }
-      if (action === 'unfollow') {
-        const target = String(req.body.following_id || '');
-        await supabase(`player_follows?follower_id=eq.${user.id}&following_id=eq.${target}`, { method: 'DELETE' });
-        return json(res, 200, { ok: true });
+      if (action === 'follow' || action === 'unfollow') {
+        return json(res, 410, { error: 'Follow actions are retired. Use /api/social for friend requests after completing adult self-attestation.' });
       }
       return json(res, 400, { error: 'Unknown player action.' });
     }

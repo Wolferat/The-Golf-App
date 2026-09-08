@@ -218,6 +218,11 @@
           </div>
           ${!website&&!registration?'<p class="settings-note">Official website and registration links have not been verified yet.</p>':''}
           <p class="plan-note">${escape(listing.address||listing.city||'Location not provided')}${listing.phone?` · ${escape(listing.phone)}`:''}</p>
+          <div class="plan-actions" style="margin-top:16px">
+            <button class="button ghost" type="button" id="saveListing">Save listing</button>
+            <button class="button ghost" type="button" id="reportListing">Report listing</button>
+          </div>
+          <p class="status" id="listingActionStatus"></p>
         </aside>
       </div>
     </article>`;
@@ -277,6 +282,36 @@
     });
 
     const findBtn=$('#findOfficialPhotos');
+    const saveBtn=$('#saveListing');
+    if(saveBtn){
+      saveBtn.onclick=async()=>{
+        const s=$('#listingActionStatus');
+        s.textContent='Saving...';
+        try{
+          const r=await fetch('/api/saved-listings',{method:'POST',headers:authHeaders(),body:JSON.stringify({listing_id:id})});
+          const d=await r.json().catch(()=>({}));
+          if(!r.ok)throw Error(d.error||'Could not save listing.');
+          s.textContent='Listing saved.';
+          saveBtn.disabled=true;
+        }catch(err){s.textContent=err.message}
+      };
+    }
+    const reportBtn=$('#reportListing');
+    if(reportBtn){
+      reportBtn.onclick=async()=>{
+        const category=prompt('Report category: harassment, spam, inappropriate_content, impersonation, safety_concern, other');
+        if(!category)return;
+        const details=prompt('Optional details (max 2000 characters)')||'';
+        const s=$('#listingActionStatus');
+        s.textContent='Submitting report...';
+        try{
+          const r=await fetch('/api/social',{method:'POST',headers:authHeaders(),body:JSON.stringify({action:'report',reported_listing_id:id,category,details})});
+          const d=await r.json().catch(()=>({}));
+          if(!r.ok)throw Error(d.error||'Could not submit report.');
+          s.textContent='Report submitted.';
+        }catch(err){s.textContent=err.message}
+      };
+    }
     if(findBtn){
       findBtn.onclick=async()=>{
         const s=$('#officialPhotoStatus');
