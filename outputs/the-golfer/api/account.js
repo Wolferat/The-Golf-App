@@ -1,12 +1,15 @@
-import { json, requireUser, supabase, storageRemove } from '../lib/admin.js';
+import { json, requireUser, supabase } from '../lib/admin.js';
 import {
   archiveModerationEvidence,
-  deleteAuthUser,
-  deleteStoragePaths,
-  deleteUserOwnedDataStrict,
   appendDeletionStep,
+  attemptPendingStorageCleanup,
+  deleteAuthUser,
+  deleteUserOwnedDataStrict,
   listUserStoragePaths,
+  persistPendingStorageObjects,
+  pendingStorageRemaining,
   retentionDaysFromSettings,
+  storageRemoveStrict,
   verifyUserPassword
 } from '../lib/account-deletion.js';
 
@@ -38,53 +41,25 @@ export default async function handler(req, res) {
       const settings = await loadAppSettings();
       const retentionDays = retentionDaysFromSettings(settings);
       const [latest] = await supabase(
-        `account_deletion_requests?user_id=eq.${auth.user.id}&select=id,status,requested_at,completed_at,cleanup_completed_at,retry_count,next_retry_at,failure_reason,steps&order=requested_at.desc&limit=1`
+        `account_deletion_requests?user_id=eq.${auth.user.id}&select=id,status,requested_at,completed_at,cleanup_completed_at,retry_count,next_retry_at,failure_reason,steps,pending_storage_objects&order=requested_at.desc&limit=1`
       ).catch(() => []);
       return json(res, 200, {
         account_deletion_enabled: !!settings.account_deletion_enabled,
         retention_configured: retentionDays != null,
         retention_days: retentionDays,
         test_mode: process.env.GOLFOLIO_DELETION_TEST_MODE === 'true',
-        latest_request: latest || null
+        latest_request: latest
+          ? {
+              ...latest,
+              pending_storage_count: pendingStorageRemaining(latest.pending_storage_objects).length
+            }
+          : null
       });
     }
 
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed.' });
 
     const action = req.body?.action;
-    if (action === 'retry_cleanup') {
-      const requestId = String(req.body?.request_id || '');
-      const [request] = await supabase(
-        `account_deletion_requests?id=eq.${encodeURIComponent(requestId)}&user_id=eq.${auth.user.id}&select=id,status`
-      );
-      if (!request || request.status !== 'cleanup_pending') {
-        return json(res, 404, { error: 'No retryable cleanup request found.' });
-      }
-      const storageFailures = await deleteStoragePaths(storageRemove, await listUserStoragePaths(supabase, auth.user.id));
-      if (storageFailures.length) {
-        await appendDeletionStep(supabase, requestId, 'storage_cleanup_retry', 'failed', storageFailures);
-        await markDeletionRequest(requestId, {
-          failure_reason: 'Storage cleanup is still incomplete.',
-          next_retry_at: new Date(Date.now() + 3600000).toISOString(),
-          retry_count: Number(request.retry_count || 0) + 1
-        });
-        return json(res, 202, {
-          ok: false,
-          status: 'cleanup_pending',
-          message: 'Storage cleanup is still incomplete. Retry later.'
-        });
-      }
-      await appendDeletionStep(supabase, requestId, 'storage_cleanup_retry', 'completed');
-      await markDeletionRequest(requestId, {
-        status: 'completed',
-        cleanup_completed_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        failure_reason: null,
-        next_retry_at: null
-      });
-      return json(res, 200, { ok: true, status: 'completed' });
-    }
-
     if (action !== 'delete_account') return json(res, 400, { error: 'Unknown account action.' });
 
     const settings = await loadAppSettings();
@@ -115,7 +90,12 @@ export default async function handler(req, res) {
     const [request] = await supabase('account_deletion_requests', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ user_id: auth.user.id, status: 'processing', steps: [] })
+      body: JSON.stringify({
+        user_id: auth.user.id,
+        status: 'processing',
+        steps: [],
+        pending_storage_objects: []
+      })
     });
 
     const reports = await supabase(
@@ -141,8 +121,28 @@ export default async function handler(req, res) {
     }
     await appendDeletionStep(supabase, request.id, 'moderation_evidence', 'completed');
 
-    const storagePaths = await listUserStoragePaths(supabase, auth.user.id);
-    const storageFailures = await deleteStoragePaths(storageRemove, storagePaths);
+    let storagePaths;
+    try {
+      storagePaths = await listUserStoragePaths(supabase, auth.user.id);
+    } catch (error) {
+      await appendDeletionStep(supabase, request.id, 'storage_enumeration', 'failed', error.message);
+      await markDeletionRequest(request.id, {
+        status: 'failed',
+        failure_reason: 'Could not enumerate private storage for cleanup.'
+      });
+      return json(res, 500, {
+        error: 'Account deletion failed while enumerating private storage.',
+        request_id: request.id,
+        status: 'failed'
+      });
+    }
+
+    const pendingObjects = await persistPendingStorageObjects(supabase, request.id, storagePaths);
+    const { objects: storageObjects, failures: storageFailures } = await attemptPendingStorageCleanup(
+      storageRemoveStrict,
+      pendingObjects
+    );
+    await markDeletionRequest(request.id, { pending_storage_objects: storageObjects });
     if (storageFailures.length) {
       await appendDeletionStep(supabase, request.id, 'storage_cleanup', 'failed', storageFailures);
     } else {
@@ -203,20 +203,23 @@ export default async function handler(req, res) {
       });
     }
 
-    if (storageFailures.length) {
+    const remainingStorage = pendingStorageRemaining(storageObjects);
+    if (remainingStorage.length) {
       await markDeletionRequest(request.id, {
         status: 'cleanup_pending',
         cleanup_completed_at: null,
         completed_at: new Date().toISOString(),
-        failure_reason: 'Authentication access removed, but storage cleanup remains retryable.',
-        next_retry_at: new Date(Date.now() + 3600000).toISOString()
+        failure_reason: 'Authentication access removed. Storage cleanup will retry server-side.',
+        next_retry_at: new Date(Date.now() + 60000).toISOString(),
+        pending_storage_objects: storageObjects
       });
       return json(res, 202, {
         ok: true,
         status: 'cleanup_pending',
         request_id: request.id,
         message:
-          'Authentication access was removed. Some private storage cleanup is still pending and can be retried.',
+          'Authentication access was removed. Remaining private storage cleanup will retry automatically.',
+        pending_storage_count: remainingStorage.length,
         retention_note:
           retentionDays == null
             ? 'Test-mode deletion completed without configured retention.'
@@ -228,7 +231,9 @@ export default async function handler(req, res) {
       status: 'completed',
       completed_at: new Date().toISOString(),
       cleanup_completed_at: new Date().toISOString(),
-      failure_reason: null
+      failure_reason: null,
+      next_retry_at: null,
+      pending_storage_objects: storageObjects
     });
 
     return json(res, 200, {
@@ -242,10 +247,12 @@ export default async function handler(req, res) {
           : `Moderation evidence may be retained for up to ${retentionDays} days before purge.`
     });
   } catch (error) {
-    const missing = /account_deletion|moderation_evidence|schema cache|does not exist/i.test(error.message || '');
+    const missing = /account_deletion|moderation_evidence|pending_storage_objects|schema cache|does not exist/i.test(
+      error.message || ''
+    );
     return json(res, error.status || (missing ? 503 : 500), {
       error: missing
-        ? 'Account deletion is not ready yet. Run migrations 14 and 15 in Supabase, then try again.'
+        ? 'Account deletion is not ready yet. Run migrations 14 through 16 in Supabase, then try again.'
         : error.message || 'Account deletion failed.'
     });
   }

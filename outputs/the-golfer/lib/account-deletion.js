@@ -5,6 +5,38 @@ import {
   deleteAuthUser
 } from './account-lifecycle.js';
 
+export { deleteAuthUser, retentionDaysFromSettings, purgeAfterFromRetention } from './account-lifecycle.js';
+
+const REQUIRED_COMPLETION_STEPS = [
+  'moderation_evidence',
+  'owned_data_cleanup',
+  'profile_scrub',
+  'auth_delete'
+];
+
+export function storageObjectsFromPaths(paths = []) {
+  return (paths || []).map(({ bucket, path }) => ({
+    bucket,
+    path,
+    status: 'pending'
+  }));
+}
+
+export function requiredStepsComplete(steps = []) {
+  const completed = new Set(
+    (steps || []).filter((entry) => entry.status === 'completed').map((entry) => entry.step)
+  );
+  return REQUIRED_COMPLETION_STEPS.every((step) => completed.has(step));
+}
+
+export function pendingStorageRemaining(objects = []) {
+  return (objects || []).filter((item) => item.status !== 'deleted');
+}
+
+export function allStorageDeleted(objects = []) {
+  return !(objects || []).some((item) => item.status !== 'deleted');
+}
+
 export async function verifyUserPassword(email, password) {
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_ANON_KEY;
@@ -32,32 +64,81 @@ export async function appendDeletionStep(supabase, requestId, step, status, deta
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ steps })
   });
+  return steps;
 }
 
 export async function listUserStoragePaths(supabase, userId) {
   const paths = [];
   const contributions = await supabase(
     `listing_photo_contributions?contributor_id=eq.${encodeURIComponent(userId)}&select=storage_path`
-  ).catch(() => []);
-  for (const row of contributions) if (row.storage_path) paths.push({ bucket: 'player-contributions', path: row.storage_path });
+  );
+  for (const row of contributions) {
+    if (row.storage_path) paths.push({ bucket: 'player-contributions', path: row.storage_path });
+  }
 
   const reviews = await supabase(
     `listing_reviews?player_id=eq.${encodeURIComponent(userId)}&select=id,photo_path`
-  ).catch(() => []);
-  for (const row of reviews) if (row.photo_path) paths.push({ bucket: 'review-photos', path: row.photo_path });
+  );
+  for (const row of reviews) {
+    if (row.photo_path) paths.push({ bucket: 'review-photos', path: row.photo_path });
+  }
 
   return paths;
 }
 
-export async function deleteStoragePaths(storageRemove, paths) {
+export async function persistPendingStorageObjects(supabase, requestId, paths) {
+  const pending_storage_objects = storageObjectsFromPaths(paths);
+  await supabase(`account_deletion_requests?id=eq.${encodeURIComponent(requestId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ pending_storage_objects })
+  });
+  return pending_storage_objects;
+}
+
+export async function storageRemoveStrict(bucket, path) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Storage is not configured.');
+  const response = await fetch(`${url}/storage/v1/object/${bucket}`, {
+    method: 'DELETE',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ prefixes: [path] })
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message || body.error || 'Storage delete failed.');
+  }
+}
+
+export async function attemptPendingStorageCleanup(storageRemoveFn, objects = []) {
+  const next = (objects || []).map((item) => ({ ...item }));
   const failures = [];
-  for (const item of paths) {
+  for (const item of next) {
+    if (item.status === 'deleted') continue;
     try {
-      await storageRemove(item.bucket, item.path);
+      await storageRemoveFn(item.bucket, item.path);
+      item.status = 'deleted';
+      item.deleted_at = new Date().toISOString();
+      delete item.error;
     } catch (error) {
-      failures.push({ ...item, error: error.message || 'storage_delete_failed' });
+      item.status = 'failed';
+      item.error = error.message || 'storage_delete_failed';
+      failures.push({ bucket: item.bucket, path: item.path, error: item.error });
     }
   }
+  return { objects: next, failures };
+}
+
+export async function deleteStoragePaths(storageRemoveFn, paths) {
+  const { failures } = await attemptPendingStorageCleanup(
+    storageRemoveFn,
+    storageObjectsFromPaths(paths)
+  );
   return failures;
 }
 
@@ -112,6 +193,91 @@ export async function archiveModerationEvidence(supabase, { userId, username, re
   return failures;
 }
 
+export async function markDeletionCompleted(supabase, requestId, { steps = [] } = {}) {
+  if (!requiredStepsComplete(steps)) {
+    throw Object.assign(new Error('Cannot mark deletion complete while required steps remain unfinished.'), {
+      status: 409
+    });
+  }
+  await supabase(`account_deletion_requests?id=eq.${encodeURIComponent(requestId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      cleanup_completed_at: new Date().toISOString(),
+      failure_reason: null,
+      next_retry_at: null
+    })
+  });
+  return { ok: true, status: 'completed' };
+}
+
+export async function retryDeletionCleanup(supabase, storageRemoveFn, requestId, { force = false } = {}) {
+  const [request] = await supabase(
+    `account_deletion_requests?id=eq.${encodeURIComponent(requestId)}&select=id,status,pending_storage_objects,steps,retry_count,next_retry_at`
+  );
+  if (!request) return { ok: false, reason: 'not_found' };
+  if (request.status !== 'cleanup_pending') return { ok: false, reason: 'not_retryable', status: request.status };
+  if (
+    !force &&
+    request.next_retry_at &&
+    new Date(request.next_retry_at).getTime() > Date.now()
+  ) {
+    return { ok: false, reason: 'retry_not_due', next_retry_at: request.next_retry_at };
+  }
+
+  const objects = Array.isArray(request.pending_storage_objects)
+    ? request.pending_storage_objects.map((item) => ({ ...item }))
+    : [];
+  const { objects: updatedObjects, failures } = await attemptPendingStorageCleanup(storageRemoveFn, objects);
+
+  await supabase(`account_deletion_requests?id=eq.${encodeURIComponent(requestId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      pending_storage_objects: updatedObjects,
+      retry_count: Number(request.retry_count || 0) + 1,
+      next_retry_at: failures.length
+        ? new Date(Date.now() + 3600000).toISOString()
+        : null,
+      failure_reason: failures.length
+        ? 'Storage cleanup is still incomplete.'
+        : null
+    })
+  });
+
+  if (failures.length) {
+    await appendDeletionStep(supabase, requestId, 'storage_cleanup_retry', 'failed', failures);
+    return {
+      ok: false,
+      status: 'cleanup_pending',
+      remaining: pendingStorageRemaining(updatedObjects).length,
+      failures
+    };
+  }
+
+  await appendDeletionStep(supabase, requestId, 'storage_cleanup_retry', 'completed');
+  const steps = await appendDeletionStep(supabase, requestId, 'storage_cleanup', 'completed');
+  await markDeletionCompleted(supabase, requestId, { steps });
+  return { ok: true, status: 'completed', request_id: requestId };
+}
+
+export async function retryPendingDeletionCleanups(supabase, storageRemoveFn, { limit = 20 } = {}) {
+  const due = await supabase(
+    `account_deletion_requests?status=eq.cleanup_pending&select=id,next_retry_at&order=requested_at.asc&limit=${limit}`
+  );
+  const results = [];
+  for (const row of due) {
+    if (row.next_retry_at && new Date(row.next_retry_at).getTime() > Date.now()) {
+      results.push({ request_id: row.id, ok: false, reason: 'retry_not_due' });
+      continue;
+    }
+    results.push({ request_id: row.id, ...(await retryDeletionCleanup(supabase, storageRemoveFn, row.id)) });
+  }
+  return { processed: results.length, results };
+}
+
 export async function purgeExpiredEvidence(supabase, now = new Date()) {
   const due = await supabase(
     `moderation_evidence?purge_after=not.is.null&purge_after=lte.${encodeURIComponent(now.toISOString())}&select=id`
@@ -123,4 +289,3 @@ export async function purgeExpiredEvidence(supabase, now = new Date()) {
   );
   return { purged: due.length };
 }
-

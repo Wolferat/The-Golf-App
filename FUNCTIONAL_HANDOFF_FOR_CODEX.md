@@ -35,13 +35,13 @@ Status key: **Implemented** = working API + wired UI in this branch. **Partial**
 | Photo contributions (separate from reviews/official photos) | **Implemented** | migration `13`, `/api/photo-contributions`, listing detail form + status list |
 | Photo decode/validate/resize/strip metadata + storage rollback | **Implemented** | `lib/contribution-photos.js` (sharp pipeline), MIME rejection, rollback on DB failure |
 | Admin contribution review queue | **Implemented** | `/api/photo-contributions?view=admin_queue`, admin button in listings moderation section |
-| Account deletion lifecycle (reauth, steps, retry, retention purge) | **Partial** | `lib/account-deletion.js`, `/api/account`, `/api/purge-evidence` cron in `vercel.json` — **requires migration 14–15 + owner gates before production** |
+| Account deletion lifecycle (reauth, steps, retry, retention purge) | **Partial** | `lib/account-deletion.js`, `/api/account`, `/api/deletion-cleanup` cron, persisted `pending_storage_objects` (migration `16`) — **server-side retry after auth removal; requires migrations 14–16 + owner gates before production** |
 | Support/community configuration surfaced to players | **Partial** | Schema + `/api/social?view=support` + Settings “Help and safety” links — **admin Company settings UI does not edit `player_support_*` / `community_standards_url` / `safety_help_url` (SQL/app_settings only)** |
 | Share listing + calendar export on detail page | **Implemented** | `listing-page.js` Share + ICS download handlers |
 | Authentication / email change / password reset | **Implemented** (web) | `index.html` sign-in/sign-up/forgot/reset flows; Settings email change via `/api/settings` — **native deep links not implemented** |
 | Saved-listings presentation | **Partial** | Settings list + detail save work — **no saved badge on explore cards** |
 | Player/admin flows (hub, rounds, listings moderation, company settings) | **Partial** | `player-pages.js` routes exist and call APIs — **prompt-based report/moderation UX; index.html hub still has legacy follow UI in embedded modal path** |
-| Executable DB integration tests | **Partial** | `scripts/functional-db.integration.test.mjs` runs when `SUPABASE_FUNCTIONAL_TEST_*` set — **3 tests skipped here (no isolated DB)** |
+| Executable DB integration tests | **Partial** | `scripts/functional-db.integration.test.mjs` uses disposable test users + user JWTs for RLS/API checks; service role for fixture setup/cleanup only — **4 integration cases skipped here (no isolated test Supabase with anon key configured)** |
 | Visual polish | **Deferred to Codex** | Functional contracts above; keep current styling direction |
 
 ---
@@ -75,9 +75,11 @@ Status key: **Implemented** = working API + wired UI in this branch. **Partial**
 
 ### Account lifecycle
 - Password reauthentication before deletion
-- Step-tracked deletion with `cleanup_pending` vs `completed`
-- Storage cleanup with reported failures; `retry_cleanup` action
-- `/api/purge-evidence` cron scheduled in `vercel.json` (daily 07:20 UTC)
+- Storage paths persisted to `pending_storage_objects` before owned-data cleanup (migration `16`)
+- Storage enumeration fails closed (query errors abort deletion before auth removal)
+- Step-tracked deletion with `cleanup_pending` vs `completed`; cannot complete while required steps unfinished
+- Server-side retry via `/api/deletion-cleanup` cron (`CRON_SECRET`); no user-session retry after auth removal
+- `/api/purge-evidence` cron for moderation evidence retention purge
 
 ### Listing detail actions
 - Save listing, share/copy link, ICS calendar export, report listing, photo contribution form + status
@@ -94,7 +96,7 @@ These exist in code/SQL but are **not live** until migrations run and owner togg
 | `account_deletion_enabled` | false | Enable after retention decision |
 | `moderation_evidence_retention_days` | null | Required before production deletion |
 | `player_support_email/url`, `community_standards_url`, `safety_help_url` | null | Set in `app_settings`; no Company settings form fields yet |
-| Migrations 09–15 | not applied here | See ordered list below |
+| Migrations 09–16 | not applied here | See ordered list below |
 
 ---
 
@@ -109,6 +111,7 @@ Run in Supabase SQL Editor after existing migrations through `signed-in-data-gat
 5. `supabase/13-photo-contributions-migration.sql`
 6. `supabase/14-account-lifecycle-migration.sql`
 7. `supabase/15-social-moderation-completion-migration.sql` — invitations, rate events, moderation actions, account restrictions, expanded deletion requests
+8. `supabase/16-account-deletion-retry-migration.sql` — persisted `pending_storage_objects` for server-side cleanup retry
 
 ---
 
@@ -122,7 +125,7 @@ Optional/new:
 - `GOOGLE_GEOCODING_API_KEY` — distant ZIP/city resolution
 - `GOLFOLIO_DELETION_TEST_MODE` — local deletion testing without production owner gates
 - `MODERATION_EVIDENCE_RETENTION_DAYS_TEST` — test retention override
-- `SUPABASE_FUNCTIONAL_TEST_URL` + `SUPABASE_FUNCTIONAL_TEST_SERVICE_ROLE_KEY` — isolated DB integration tests
+- `SUPABASE_FUNCTIONAL_TEST_URL` + `SUPABASE_FUNCTIONAL_TEST_SERVICE_ROLE_KEY` + `SUPABASE_FUNCTIONAL_TEST_ANON_KEY` — isolated DB integration tests with real user JWTs
 
 ---
 
@@ -130,7 +133,7 @@ Optional/new:
 
 | Suite | Result |
 |-------|--------|
-| `npm run check:functional` | **27 pass, 3 skipped** (DB integration skipped — no test Supabase) |
+| `npm run check:functional` | **42 pass, 4 skipped** (DB integration skipped — no test Supabase + anon key) |
 | `npm run check:photos` | **21/21 pass** |
 | `npm run check:experience` | **7/7 pass** |
 | `npm run check:mobile` | **3/3 pass** |
@@ -138,12 +141,13 @@ Optional/new:
 
 ### Tests actually run (unit/isolated)
 - Category mapping, event timezone, US location, social gates, exact username rules
-- Account lifecycle helpers, round stats (>50 rounds), contribution photo pipeline
-- Photo approval, experience, mobile bundle checks
+- Account lifecycle helpers, **deletion retry architecture** (`scripts/account-deletion-retry.test.mjs`)
+- **API handler import smoke** for all functional-launch handlers (`scripts/api-handlers.test.mjs`)
+- Round stats (>50 rounds), contribution photo pipeline
 
 ### Tests skipped (not proof of integration)
-- `functional-db.integration.test.mjs` — **3 cases skipped** without `SUPABASE_FUNCTIONAL_TEST_*`
-- Explicit skip notice test documents missing config (does not validate RLS/storage live)
+- `functional-db.integration.test.mjs` — **4 RLS/API cases skipped** without `SUPABASE_FUNCTIONAL_TEST_URL`, `SUPABASE_FUNCTIONAL_TEST_SERVICE_ROLE_KEY`, and `SUPABASE_FUNCTIONAL_TEST_ANON_KEY`
+- Skip notice test documents missing config; does not validate live RLS/storage
 
 ### Tests not run
 - End-to-end against staging/production Supabase
@@ -151,8 +155,8 @@ Optional/new:
 - `npm run ios:sync` on this Linux agent turn
 
 To run DB integration later:
-1. Boot isolated Supabase project; apply migrations 09–15
-2. Export `SUPABASE_FUNCTIONAL_TEST_URL` and `SUPABASE_FUNCTIONAL_TEST_SERVICE_ROLE_KEY`
+1. Boot isolated Supabase project; apply migrations 09–16
+2. Export all three `SUPABASE_FUNCTIONAL_TEST_*` variables (URL, service role key, anon key)
 3. Re-run `npm run check:functional`
 
 ---

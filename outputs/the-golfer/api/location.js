@@ -1,4 +1,4 @@
-import { json, requireUser, supabase } from './admin.js';
+import { json, requireUser, supabase } from '../lib/admin.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed.' });
