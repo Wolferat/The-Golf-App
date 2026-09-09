@@ -8,6 +8,7 @@ import {
   decodeReviewPhoto,
   publicReview
 } from '../lib/reviews.js';
+import { assertSocialAllowed } from '../lib/moderation.js';
 
 const REVIEW_SELECT = 'id,listing_id,player_id,rating,title,body,visited_on,photo_path,photo_status,status,created_at,updated_at';
 
@@ -181,6 +182,10 @@ export default async function handler(req, res) {
     if (auth.error) return json(res, auth.error.status, auth.error.body);
     if (ADMIN_REVIEW_ACTIONS.includes(action) || action === 'find') {
       return json(res, 403, { error: 'Admin access required.' });
+    }
+    const restriction = assertSocialAllowed(auth.profile);
+    if (!restriction.allowed) {
+      return json(res, 403, { error: 'Your account is restricted.', reason: restriction.reason });
     }
 
     if (action === 'create') {

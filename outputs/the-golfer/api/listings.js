@@ -1,5 +1,6 @@
 import {displayPhotoUrl} from '../lib/imported-photos.js';
 import { publicListing, KINDS } from '../lib/listings.js';
+import { kindsForBoardCategory } from '../lib/catalog-categories.js';
 import { json, requireUser } from '../lib/admin.js';
 
 const CARD_SELECT = 'id,title,kind,city,starts_at,price_note,latitude,longitude,status';
@@ -41,16 +42,16 @@ export default async function handler(req, res) {
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_ANON_KEY;
   if (!url || !key) return json(res, 200, { listings: [] });
   const headers = userHeaders(key, auth.token);
-  const kind = String(req.query?.kind || '').trim();
+  const boardCategory = String(req.query?.category || req.query?.kind || '').trim();
   const kinds = String(req.query?.kinds || '')
     .split(',')
     .map((item) => item.trim())
     .filter((item) => KINDS.includes(item));
-  const kindFilter = kinds.length
-    ? `&kind=in.(${kinds.map(encodeURIComponent).join(',')})`
-    : KINDS.includes(kind)
-      ? `&kind=eq.${encodeURIComponent(kind)}`
-      : '';
+  const categoryKinds = kindsForBoardCategory(boardCategory);
+  const effectiveKinds = kinds.length ? kinds : categoryKinds.length < KINDS.length ? categoryKinds : [];
+  const kindFilter = effectiveKinds.length
+    ? `&kind=in.(${effectiveKinds.map(encodeURIComponent).join(',')})`
+    : '';
   let response = await fetchApproved(url, headers, CARD_SELECT, kindFilter);
   if (!response.ok) response = await fetchApproved(url, headers, CARD_SELECT_MIN, kindFilter);
   if (!response.ok) return json(res, 502, { error: 'Could not load listings.' });

@@ -3,6 +3,14 @@
     {
       "path": "/api/expire",
       "schedule": "10 6 * * *"
+    },
+    {
+      "path": "/api/purge-evidence",
+      "schedule": "20 7 * * *"
+    },
+    {
+      "path": "/api/deletion-cleanup",
+      "schedule": "30 7 * * *"
     }
   ],
   "buildCommand": "npm run web:build",

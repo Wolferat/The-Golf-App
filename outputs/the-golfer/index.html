@@ -58,7 +58,12 @@
         </div>
         <div class="location" id="locationBar">
           <span id="locationText">Sign in to use nearby golf.</span>
-          <button class="button" id="locationButton" type="button">Use location</button>
+          <div class="location-actions">
+            <button class="button" id="locationButton" type="button">Use location</button>
+            <label class="visually-hidden" for="manualLocation">City, ST or ZIP</label>
+            <input id="manualLocation" type="text" maxlength="80" placeholder="City, ST or ZIP">
+            <button class="button ghost" id="manualLocationButton" type="button">Find</button>
+          </div>
         </div>
       </div>
       <div class="kind-filters-wrap">
@@ -67,9 +72,7 @@
           <button type="button" class="kind-filter" data-kind="course">Courses</button>
           <button type="button" class="kind-filter" data-kind="tournament">Tournaments</button>
           <button type="button" class="kind-filter" data-kind="simulator">Simulators</button>
-          <button type="button" class="kind-filter" data-kind="training">Lessons</button>
-          <button type="button" class="kind-filter" data-kind="charity">Charity</button>
-          <button type="button" class="kind-filter" data-kind="corporate">Corporate</button>
+          <button type="button" class="kind-filter" data-kind="training">Practice &amp; lessons</button>
         </nav>
       </div>
       <section id="emptyBoard" class="state-grid hidden" aria-label="Empty catalog states">
@@ -126,7 +129,10 @@
     const escapeHtml=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const verifiedBadge=(showText=true)=>`<span class="verified-badge" aria-label="Verified listing"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#178357"/><path d="M7 12.5l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>${showText?'<span class="verified-text">Verified</span>':''}</span>`;
     const venueInitials=title=>{const words=String(title||'G').trim().split(/\s+/).filter(Boolean);if(words.length>=2)return (words[0][0]+words[1][0]).toUpperCase();return String(title||'G').slice(0,2).toUpperCase()};
-    const kindLabel=kind=>({course:'Course',tournament:'Tournament',training:'Training',simulator:'Simulator',charity:'Charity',corporate:'Corporate'}[kind]||'Listing');
+    const kindLabel=kind=>({course:'Course',tournament:'Tournament',training:'Practice & lessons',simulator:'Simulator',charity:'Charity event',corporate:'Corporate event'}[kind]||'Listing');
+    const BOARD_KINDS={all:null,course:['course'],tournament:['tournament','charity','corporate'],simulator:['simulator'],training:['training']};
+    const kindMatchesFilter=(kind,key)=>{if(!key||key==='all')return true;const allowed=BOARD_KINDS[key];return allowed&&allowed.includes(kind)};
+    const filterByPrefs=(list,prefs)=>{if(!prefs||!prefs.size)return list;const allowed=new Set();if(prefs.has('tournament'))['tournament','charity','corporate'].forEach(k=>allowed.add(k));if(prefs.has('course'))allowed.add('course');if(prefs.has('training'))allowed.add('training');if(prefs.has('simulator'))allowed.add('simulator');return list.filter(x=>allowed.has(x.kind))};
     function categoryIcon(kind){const icons={course:`<svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="7.5" cy="16.5" r="2.2" fill="currentColor"/><path d="M9.2 15.2 16 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 5.5c1.8-.2 3.4.9 3.6 2.5.3 1.8-1.4 2.8-3.1 2.4L14.2 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20.2h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".45"/></svg>`,tournament:`<svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 21V4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6 5.2c3.2-1.6 6.2.6 9.4-1 0 4.2-3 5.4-9.4 5.4V5.2Z" fill="currentColor" opacity=".9"/><path d="M5 21h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,training:`<svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="4.6" stroke="currentColor" stroke-width="1.5" opacity=".7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 3.8v2.2M20.2 12h-2.2M12 20.2v-2.2M3.8 12h2.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,simulator:`<svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11" rx="1.8" stroke="currentColor" stroke-width="1.7"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="10.4" r="2.2" fill="currentColor"/></svg>`,charity:`<svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20s-7-4.4-7-9.2A3.8 3.8 0 0 1 12 7.2 3.8 3.8 0 0 1 19 10.8C19 15.6 12 20 12 20Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,corporate:`<svg class="cat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20V8.5A1.5 1.5 0 0 1 5.5 7H11v13" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M11 20V4.8A1.3 1.3 0 0 1 12.3 3.5H18.5A1.5 1.5 0 0 1 20 5v15" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`};return `<div class="cat-badge" aria-hidden="true">${icons[kind]||icons.tournament}</div>`}
     function listingFallback(kind,title){return `<div class="listing-fallback golf-art" aria-label="Golf illustration"><span class="golf-art-flag"></span><span class="golf-art-label">MAKE TIME FOR GOLF</span></div>`}
     function listingMedia(x){const alt=escapeHtml(x.title);const url=x.cover_photo_url&&String(x.cover_photo_url).indexOf('https://')===0?x.cover_photo_url:null;if(url)return `<div class="listing-media has-gradient" data-fallback-kind="${escapeHtml(x.kind||'course')}" data-fallback-title="${alt}"><img class="listing-cover" src="${escapeHtml(url)}" alt="${alt}" loading="lazy"></div>`;return `<div class="listing-media">${listingFallback(x.kind,x.title)}</div>`}
@@ -151,7 +157,7 @@
       empty.classList.add('hidden');board.classList.remove('hidden');board.setAttribute('aria-label','Golfolio preview');
       const categories=[
         {kind:'course',label:'Courses'},{kind:'tournament',label:'Tournaments'},{kind:'simulator',label:'Simulators'},
-        {kind:'training',label:'Training'},{kind:'charity',label:'Charity'},{kind:'corporate',label:'Corporate'}
+        {kind:'training',label:'Practice & lessons'}
       ];
       board.innerHTML=`<section class="preview-locked">
         <p class="preview-intro">Explore courses, tournaments, lessons, and indoor golf. Find practical details to help you plan your visit.</p>
@@ -164,10 +170,10 @@
       $('#boardTitle').textContent='Find your next round';
       $('#boardCopy').textContent='For a first lesson, a regular round, or a day worth making time for.';
     }
-    function render(list){
+    function render(list,emptyCopy){
       setExploreMode(true);
       const board=$('#listingBoard'),empty=$('#emptyBoard');
-      if(!list.length){board.classList.add('hidden');empty.classList.remove('hidden');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent='No listings in this view yet. Try another category or check back for updates.';return}
+      if(!list.length){board.classList.add('hidden');empty.classList.remove('hidden');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent=emptyCopy||'No listings in this view yet. Try another category or check back for updates.';return}
       empty.classList.add('hidden');board.classList.remove('hidden');board.setAttribute('aria-label','Explore nearby');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent=list.length+' verified '+(list.length===1?'spot':'spots')+' to explore. Compare the details and choose where to play.';
       board.innerHTML=list.map(x=>{
         const date=x.starts_at?new Date(x.starts_at).toLocaleDateString():'';
@@ -181,31 +187,54 @@
         if(featured){const img=document.createElement('img');img.alt='';img.onload=()=>{photo.hidden=false};img.onerror=()=>{photo.hidden=true;photo.replaceChildren()};img.src=featured.cover_photo_url;photo.replaceChildren(img);}
       }
     }
-    let boardPrefs={radius:15,kinds:null,useLocation:false},kindFilter='all';
-    async function loadBoardPrefs(){try{const session=boardSession();if(!session?.access_token)return;const r=await fetch('/api/settings',{headers:{Authorization:'Bearer '+session.access_token}});if(!r.ok)return;const d=await r.json(),s=d.settings||{};boardPrefs.radius=Number(s.nearby_radius_miles||15);boardPrefs.useLocation=!!s.use_location;boardPrefs.kinds=new Set([s.show_tournaments&&'tournament',s.show_courses&&'course',s.show_training&&'training',s.show_simulators&&'simulator'].filter(Boolean));if(boardPrefs.useLocation&&!coords)useLocation(true)}catch{}}
-    async function loadListings(){
+    let boardPrefs={radius:15,kinds:null,useLocation:false},kindFilter='all',manualLocation=null,ignoreRadius=false;
+    async function loadBoardPrefs(){try{const session=boardSession();if(!session?.access_token)return;const r=await fetch('/api/settings',{headers:{Authorization:'Bearer '+session.access_token}});if(!r.ok)return;const d=await r.json(),s=d.settings||{};boardPrefs.radius=Number(s.nearby_radius_miles||15);boardPrefs.useLocation=!!s.use_location;boardPrefs.kinds=new Set([s.show_tournaments&&'tournament',s.show_courses&&'course',s.show_training&&'training',s.show_simulators&&'simulator'].filter(Boolean));if(boardPrefs.useLocation&&!coords&&!manualLocation)useLocation(true)}catch{}}
+    async function loadListings(opts={}){
       const session=boardSession();
       if(!session?.access_token){renderSignedOutPreview();return}
+      ignoreRadius=!!opts.ignoreRadius;
       try{
-        const qs=kindFilter&&kindFilter!=='all'?'?kind='+encodeURIComponent(kindFilter):'';
+        await loadBoardPrefs();
+        const kinds=BOARD_KINDS[kindFilter];
+        const qs=kinds?'?category='+encodeURIComponent(kindFilter):'';
         const r=await fetch('/api/listings'+qs,{headers:{Authorization:'Bearer '+session.access_token}});
         if(r.status===401){renderSignedOutPreview();return}
         const data=await r.json();
         let list=data.listings||[];
-        if(kindFilter&&kindFilter!=='all')list=list.filter(x=>x.kind===kindFilter);
+        list=filterByPrefs(list,boardPrefs.kinds);
+        if(kindFilter&&kindFilter!=='all')list=list.filter(x=>kindMatchesFilter(x.kind,kindFilter));
         const radius=boardPrefs.radius||15;
-        if(coords)list=list.filter(x=>x.latitude&&x.longitude&&miles(coords,{lat:x.latitude,lng:x.longitude})<=radius);
-        render(list);
+        if(coords&&!ignoreRadius)list=list.filter(x=>{if(!x.latitude||!x.longitude)return true;return miles(coords,{lat:x.latitude,lng:x.longitude})<=radius});
+        const emptyCopy=manualLocation&&!manualLocation.within_launch_area?'No verified listings near '+manualLocation.label+'. Browse the '+manualLocation.launch_area_label+' catalog below.':null;
+        render(list,emptyCopy);
       }catch{render([])}
+    }
+    async function resolveManualLocation(){
+      const session=boardSession();
+      const query=$('#manualLocation')?.value?.trim();
+      if(!session?.access_token){promptLogin();return}
+      if(!query){$('#locationText').textContent='Enter a US city, ST or ZIP code.';return}
+      $('#locationText').textContent='Looking up location...';
+      try{
+        const r=await fetch('/api/location?q='+encodeURIComponent(query),{headers:{Authorization:'Bearer '+session.access_token}});
+        const d=await r.json();
+        if(!r.ok){$('#locationText').textContent=d.error||'Could not resolve that location.';return}
+        manualLocation=d;coords={lat:d.latitude,lng:d.longitude};
+        if(!d.within_launch_area){$('#locationText').textContent='No verified listings near '+d.label+'. Catalog covers '+d.launch_area_label+'.';loadListings({ignoreRadius:true});return}
+        $('#locationText').textContent='Showing verified listings within '+(boardPrefs.radius||15)+' miles of '+d.label+'.';
+        loadListings();
+      }catch{$('#locationText').textContent='Could not resolve that location.'}
     }
     function useLocation(fromSettings){
       if(!boardSession()?.access_token){$('#locationText').textContent='Sign in to explore verified golf near you.';promptLogin();return}
       if(!navigator.geolocation){$('#locationText').textContent='This browser does not support location.';return}
-      navigator.geolocation.getCurrentPosition(p=>{coords={lat:p.coords.latitude,lng:p.coords.longitude};const radius=boardPrefs.radius||15;$('#locationText').textContent='Showing verified listings within '+radius+' miles of you.';$('#boardTitle').textContent='Golf within '+radius+' miles';$('#boardCopy').textContent=fromSettings?'Location preference is on for this visit. Precise coordinates are not stored.':'Location is on for this visit only. Precise coordinates are not stored.';loadListings()},()=>{$('#locationText').textContent='Location was not shared — showing available listings.'},{enableHighAccuracy:false,timeout:10000,maximumAge:fromSettings?0:300000})
+      navigator.geolocation.getCurrentPosition(p=>{manualLocation=null;coords={lat:p.coords.latitude,lng:p.coords.longitude};const radius=boardPrefs.radius||15;$('#locationText').textContent='Showing verified listings within '+radius+' miles of you.';$('#boardTitle').textContent='Golf within '+radius+' miles';$('#boardCopy').textContent=fromSettings?'Location preference is on for this visit. Precise coordinates are not stored.':'Location is on for this visit only. Precise coordinates are not stored.';loadListings()},()=>{$('#locationText').textContent='Location was not shared — showing available listings.';loadListings({ignoreRadius:true})},{enableHighAccuracy:false,timeout:10000,maximumAge:fromSettings?0:300000})
     }
     window.golfolioLoadBoard=loadListings;
     window.golfolioLoadBoardPrefs=loadBoardPrefs;
     $('#locationButton').onclick=()=>useLocation(false);$('#nearMeButton').onclick=()=>useLocation(false);
+    $('#manualLocationButton').onclick=resolveManualLocation;
+    $('#manualLocation').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();resolveManualLocation()}};
     $('#browseAction').onclick=()=>{$('#discoveryBoard')?.scrollIntoView({behavior:'smooth',block:'start'})};
     document.querySelectorAll('#kindFilters [data-kind]').forEach(button=>button.onclick=()=>{kindFilter=button.dataset.kind;document.querySelectorAll('#kindFilters [data-kind]').forEach(x=>x.classList.toggle('active',x===button));loadListings()});
     $('#signupForm').onsubmit=async e=>{e.preventDefault();const status=$('#signupStatus'),username=$('#username').value.trim(),email=$('#email').value.trim(),password=$('#password').value,confirmation=$('#confirmPassword').value;if(password!==confirmation){status.textContent='Passwords do not match.';return}status.textContent='Creating your account...';try{const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password,username})}),data=await r.json();if(!r.ok)throw Error(data.msg||data.message||'Unable to create account.');status.textContent='Check your email to verify your Golfolio account.';$('#signupForm').reset()}catch(err){status.textContent=err.message}};
@@ -218,7 +247,7 @@
   <div class="modal" id="adminModal"><div class="dialog admin-dialog"><button class="close" aria-label="Close">x</button><h2>Listing review</h2><p>AI and community leads stay here until you approve them.</p><div id="adminBody"><p class="copy">Loading pending listings...</p></div></div></div>
   <div class="modal" id="resetModal"><div class="dialog"><button class="close" aria-label="Close">x</button><h2>Choose a new password</h2><p>Set a new password for your Golfolio account.</p><form class="form" id="resetForm"><label for="resetPassword">New password</label><div class="password-row"><input id="resetPassword" type="password" minlength="8" autocomplete="new-password" required><button class="show-password" type="button" data-password-toggle="resetPassword">Show</button></div><label for="resetConfirmPassword">Confirm new password</label><div class="password-row"><input id="resetConfirmPassword" type="password" minlength="8" autocomplete="new-password" required><button class="show-password" type="button" data-password-toggle="resetConfirmPassword">Show</button></div><button class="button" type="submit">Save new password</button><p class="status" id="resetStatus"></p></form></div></div>
   <div class="modal player-hub-modal" id="playerHubModal"><div class="dialog player-hub"><button class="close" aria-label="Close">x</button><div class="hub-kicker">Golfolio player hub</div><div id="playerHubBody"><p class="copy">Loading your golf...</p></div></div></div>
-  <div class="modal" id="roundModal"><div class="dialog"><button class="close" aria-label="Close">x</button><div class="hub-kicker">Round tracker</div><h2>Log a round</h2><p>Keep this private, share it with connections, or add it to your public golfer profile.</p><form class="form" id="roundForm"><label for="roundCourse">Course</label><input id="roundCourse" maxlength="160" placeholder="Where did you play?" required><div class="form-split"><div><label for="roundDate">Date played</label><input id="roundDate" type="date" required></div><div><label for="roundScore">Score</label><input id="roundScore" type="number" min="20" max="200" placeholder="92" required></div></div><div class="form-split"><div><label for="roundHoles">Holes</label><select id="roundHoles"><option value="18">18 holes</option><option value="9">9 holes</option></select></div><div><label for="roundPar">Par (optional)</label><input id="roundPar" type="number" min="27" max="90" placeholder="72"></div></div><div class="form-split"><div><label for="roundPutts">Putts (optional)</label><input id="roundPutts" type="number" min="0" max="100"></div><div><label for="roundVisibility">Who can see it?</label><select id="roundVisibility"><option value="private">Only me</option><option value="connections">My connections</option><option value="public">Public profile</option></select></div></div><label for="roundNotes">Quick notes (optional)</label><input id="roundNotes" maxlength="500" placeholder="Best drive, birdies, what to work on..."><button class="button" type="submit">Save round</button><p class="status" id="roundStatus"></p></form></div></div>
+  <div class="modal" id="roundModal"><div class="dialog"><button class="close" aria-label="Close">x</button><div class="hub-kicker">Round tracker</div><h2>Log a round</h2><p>Your rounds stay private. Only you can see your score history.</p><form class="form" id="roundForm"><label for="roundCourse">Course</label><input id="roundCourse" maxlength="160" placeholder="Where did you play?" required><div class="form-split"><div><label for="roundDate">Date played</label><input id="roundDate" type="date" required></div><div><label for="roundScore">Score</label><input id="roundScore" type="number" min="20" max="200" placeholder="92" required></div></div><div class="form-split"><div><label for="roundHoles">Holes</label><select id="roundHoles"><option value="18">18 holes</option><option value="9">9 holes</option></select></div><div><label for="roundPar">Par (optional)</label><input id="roundPar" type="number" min="27" max="90" placeholder="72"></div></div><label for="roundPutts">Putts (optional)</label><input id="roundPutts" type="number" min="0" max="100"><label for="roundNotes">Quick notes (optional)</label><input id="roundNotes" maxlength="500" placeholder="Best drive, birdies, what to work on..."><button class="button" type="submit">Save round</button><p class="status" id="roundStatus"></p></form></div></div>
   <nav class="mobile-nav" id="mobileNav" aria-label="App navigation"></nav>
   <script src="/app-nav.js"></script>
   <script>
@@ -255,7 +284,7 @@
       async function renderPlayers(body){body.innerHTML=`<div class="hub-head"><div><div class="hub-kicker">Golfolio player hub</div><h1 class="hub-name">Find your golf crew</h1><p class="hub-subtitle">Follow player usernames. Real names, email addresses, and phone numbers stay private.</p></div></div>${hubTabs('players')}<section class="hub-card player-finder"><label for="playerSearch">Search player usernames</label><input id="playerSearch" maxlength="24" placeholder="Search by username"><div id="playerResults" class="player-list"><p class="copy">Loading players...</p></div></section>`;bindHubTabs(body);const search=$('#playerSearch'),results=$('#playerResults');const load=async()=>{results.innerHTML='<p class="copy">Searching...</p>';try{const d=await playerApi('?view=players&q='+encodeURIComponent(search.value.trim()));results.innerHTML=d.players.length?d.players.map(p=>`<div class="player-row"><div class="profile-avatar">${playerAvatar(p)}</div><div class="player-row-main"><strong>${escapeHtml(p.username)}</strong><small>${escapeHtml(p.city||p.home_course||'Golfolio player')}</small></div><button class="button" data-follow="${p.id}" data-following="${p.following}">${p.following?'Following':'Follow'}</button></div>`).join(''):'<div class="empty-hub"><h3>No player found.</h3><p>Try another username as more golfers join Golfolio.</p></div>';results.querySelectorAll('[data-follow]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await playerApi('',{method:'POST',body:JSON.stringify({action:button.dataset.following==='true'?'unfollow':'follow',following_id:button.dataset.follow})});load()}catch(e){button.disabled=false;alert(e.message)}})}catch(e){results.innerHTML='<p class="setup-note">'+escapeHtml(e.message)+'</p>'}};search.oninput=()=>{clearTimeout(search._timer);search._timer=setTimeout(load,250)};load()}
       function bindHubTabs(body){body.querySelectorAll('[data-hub-view]').forEach(button=>button.onclick=()=>openPlayerHub(button.dataset.hubView))}
       function openRoundForm(){close('#playerHubModal');$('#roundDate').value=new Date().toISOString().slice(0,10);$('#roundForm').reset();$('#roundDate').value=new Date().toISOString().slice(0,10);open('#roundModal')}
-      const roundForm=$('#roundForm');if(roundForm)roundForm.onsubmit=async e=>{e.preventDefault();const s=$('#roundStatus');s.textContent='Saving round...';try{await playerApi('',{method:'POST',body:JSON.stringify({action:'round',round:{course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:$('#roundVisibility').value}})});s.textContent='Round saved.';setTimeout(()=>{close('#roundModal');openPlayerHub('game')},500)}catch(error){s.textContent=error.message}};
+      const roundForm=$('#roundForm');if(roundForm)roundForm.onsubmit=async e=>{e.preventDefault();const s=$('#roundStatus');s.textContent='Saving round...';try{await playerApi('',{method:'POST',body:JSON.stringify({action:'round',round:{course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:'private'}})});s.textContent='Round saved.';setTimeout(()=>{close('#roundModal');openPlayerHub('game')},500)}catch(error){s.textContent=error.message}};
 
       try{const query=new URLSearchParams(location.search),hash=new URLSearchParams(location.hash.slice(1)),accessToken=hash.get('access_token'),refreshToken=hash.get('refresh_token');if(accessToken){session={access_token:accessToken,refresh_token:refreshToken};localStorage.setItem('golfolio_session',JSON.stringify(session));history.replaceState(null,'',location.pathname);loadProfile()}else{session=JSON.parse(localStorage.getItem('golfolio_session')||'null');if(session)loadProfile();else updateAccount()}if(query.get('login')==='1')open('#loginModal');if(query.get('signup')==='1')open('#signupModal');if(query.get('reset')==='1'||hash.get('type')==='recovery')open('#resetModal');if(hash.get('error')){$('#memberState').textContent='That email link has expired. Request a new one from Sign in.';history.replaceState(null,'',location.pathname)}}catch{updateAccount()}
     })();
