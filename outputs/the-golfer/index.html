@@ -15,7 +15,7 @@
       document.documentElement.className = mode;
     })();
   </script>
-<link rel="stylesheet" href="/clubhouse.css"><link rel="stylesheet" href="/homepage.css"><meta name="theme-color" content="#101312"><script src="/experience.js"></script></head>
+<link rel="stylesheet" href="/clubhouse.css"><link rel="stylesheet" href="/homepage.css"><link rel="stylesheet" href="/mobile-shell.css"><meta name="theme-color" content="#101312"><script src="/experience.js"></script><script src="/mobile-ui.js"></script><script src="/saved-listings-client.js"></script></head>
 <body data-page="home" class="signed-out">
   <script>document.body.className = document.documentElement.className;</script>
   <header class="app-header">
@@ -53,8 +53,13 @@
     <div class="discovery-panel">
       <div class="board-head">
         <div>
+          <p class="explore-greeting" id="exploreGreeting">Welcome back.</p>
           <h2 id="boardTitle">Find your next round</h2>
           <p class="copy" id="boardCopy">Sign in to explore verified golf near you.</p>
+          <div class="explore-search-row">
+            <label class="visually-hidden" for="exploreSearch">Search listings</label>
+            <input id="exploreSearch" type="search" maxlength="80" placeholder="Search courses, cities, or venues" autocomplete="off">
+          </div>
         </div>
         <div class="location" id="locationBar">
           <span id="locationText">Sign in to use nearby golf.</span>
@@ -72,7 +77,7 @@
           <button type="button" class="kind-filter" data-kind="course">Courses</button>
           <button type="button" class="kind-filter" data-kind="tournament">Tournaments</button>
           <button type="button" class="kind-filter" data-kind="simulator">Simulators</button>
-          <button type="button" class="kind-filter" data-kind="training">Practice &amp; lessons</button>
+          <button type="button" class="kind-filter" data-kind="training">Lessons</button>
         </nav>
       </div>
       <section id="emptyBoard" class="state-grid hidden" aria-label="Empty catalog states">
@@ -129,7 +134,7 @@
     const escapeHtml=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const verifiedBadge=(showText=true)=>`<span class="verified-badge" aria-label="Verified listing"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#178357"/><path d="M7 12.5l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>${showText?'<span class="verified-text">Verified</span>':''}</span>`;
     const venueInitials=title=>{const words=String(title||'G').trim().split(/\s+/).filter(Boolean);if(words.length>=2)return (words[0][0]+words[1][0]).toUpperCase();return String(title||'G').slice(0,2).toUpperCase()};
-    const kindLabel=kind=>({course:'Course',tournament:'Tournament',training:'Practice & lessons',simulator:'Simulator',charity:'Charity event',corporate:'Corporate event'}[kind]||'Listing');
+    const kindLabel=kind=>({course:'Course',tournament:'Tournament',training:'Lessons',simulator:'Simulator',charity:'Charity event',corporate:'Corporate event'}[kind]||'Listing');
     const BOARD_KINDS={all:null,course:['course'],tournament:['tournament','charity','corporate'],simulator:['simulator'],training:['training']};
     const kindMatchesFilter=(kind,key)=>{if(!key||key==='all')return true;const allowed=BOARD_KINDS[key];return allowed&&allowed.includes(kind)};
     const filterByPrefs=(list,prefs)=>{if(!prefs||!prefs.size)return list;const allowed=new Set();if(prefs.has('tournament'))['tournament','charity','corporate'].forEach(k=>allowed.add(k));if(prefs.has('course'))allowed.add('course');if(prefs.has('training'))allowed.add('training');if(prefs.has('simulator'))allowed.add('simulator');return list.filter(x=>allowed.has(x.kind))};
@@ -157,7 +162,7 @@
       empty.classList.add('hidden');board.classList.remove('hidden');board.setAttribute('aria-label','Golfolio preview');
       const categories=[
         {kind:'course',label:'Courses'},{kind:'tournament',label:'Tournaments'},{kind:'simulator',label:'Simulators'},
-        {kind:'training',label:'Practice & lessons'}
+        {kind:'training',label:'Lessons'}
       ];
       board.innerHTML=`<section class="preview-locked">
         <p class="preview-intro">Explore courses, tournaments, lessons, and indoor golf. Find practical details to help you plan your visit.</p>
@@ -173,13 +178,22 @@
     function render(list,emptyCopy){
       setExploreMode(true);
       const board=$('#listingBoard'),empty=$('#emptyBoard');
-      if(!list.length){board.classList.add('hidden');empty.classList.remove('hidden');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent=emptyCopy||'No listings in this view yet. Try another category or check back for updates.';return}
-      empty.classList.add('hidden');board.classList.remove('hidden');board.setAttribute('aria-label','Explore nearby');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent=list.length+' verified '+(list.length===1?'spot':'spots')+' to explore. Compare the details and choose where to play.';
+      const greeting=$('#exploreGreeting');
+      if(greeting){try{const session=boardSession();const name=session?.user_metadata?.username||'';greeting.textContent=name?`Welcome back${name?`, ${name}`:''}.`:'';}catch{}}
+      if(!list.length){board.classList.add('hidden');empty.classList.remove('hidden');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent=emptyCopy||'No listings in this view yet. Try another category, search, or check back for updates.';return}
+      empty.classList.add('hidden');board.classList.remove('hidden');board.setAttribute('aria-label','Explore nearby');$('#boardTitle').textContent='Find your next round';$('#boardCopy').textContent=list.length+' verified '+(list.length===1?'spot':'spots')+' to explore.';
+      lastRendered=list;
       board.innerHTML=list.map(x=>{
         const date=x.starts_at?new Date(x.starts_at).toLocaleDateString():'';
-        const meta=`${escapeHtml(x.city||'Golf')} · ${escapeHtml(kindLabel(x.kind))}`;
-        return `<a class="listing-card" href="/listing?id=${encodeURIComponent(x.id)}">${listingMedia(x)}<div class="listing-body"><div class="listing-top"><h3>${escapeHtml(x.title)}</h3>${verifiedBadge()}</div><p class="listing-meta">${meta}</p>${date?`<p class="listing-date">${escapeHtml(date)}</p>`:''}<p class="listing-price">${escapeHtml(x.price_note||'See official source for pricing')}</p><span class="listing-arrow" aria-hidden="true">→</span></div></a>`;
+        const distance=x.distance_miles!=null?`${Number(x.distance_miles).toFixed(1)} mi · `:'';
+        const meta=`${distance}${escapeHtml(x.city||'Golf')} · ${escapeHtml(kindLabel(x.kind))}`;
+        const price=x.price_note?escapeHtml(x.price_note):'';
+        return `<article class="listing-card-wrap"><a class="listing-card" href="/listing?id=${encodeURIComponent(x.id)}">${listingMedia(x)}<div class="listing-body"><div class="listing-top"><h3>${escapeHtml(x.title)}</h3>${verifiedBadge()}</div><p class="listing-meta">${meta}</p>${date?`<p class="listing-date">${escapeHtml(date)}</p>`:''}${price?`<p class="listing-price">${price}</p>`:''}<span class="listing-arrow" aria-hidden="true">→</span></div></a><div class="listing-card-actions" data-save-slot="${escapeHtml(x.id)}"></div></article>`;
       }).join('');
+      board.querySelectorAll('[data-save-slot]').forEach(slot=>{
+        const button=window.golfolioSaved?.renderButton?.(slot.dataset.saveSlot,{compact:true});
+        if(button)slot.append(button);
+      });
       attachCoverFallbacks(board);
       const photo=document.getElementById('homePhoto');
       if(photo.hidden){
@@ -187,7 +201,9 @@
         if(featured){const img=document.createElement('img');img.alt='';img.onload=()=>{photo.hidden=false};img.onerror=()=>{photo.hidden=true;photo.replaceChildren()};img.src=featured.cover_photo_url;photo.replaceChildren(img);}
       }
     }
-    let boardPrefs={radius:15,kinds:null,useLocation:false},kindFilter='all',manualLocation=null,ignoreRadius=false;
+    let boardPrefs={radius:15,kinds:null,useLocation:false},kindFilter='all',manualLocation=null,ignoreRadius=false,searchTerm='',lastRendered=[];
+    try{kindFilter=sessionStorage.getItem('golfolio_kind_filter')||kindFilter;searchTerm=sessionStorage.getItem('golfolio_search')||'';const manual=sessionStorage.getItem('golfolio_manual_location');if(manual)manualLocation=JSON.parse(manual)}catch{}
+    const persistExplore=()=>{try{sessionStorage.setItem('golfolio_kind_filter',kindFilter);sessionStorage.setItem('golfolio_search',searchTerm||'');if(manualLocation)sessionStorage.setItem('golfolio_manual_location',JSON.stringify(manualLocation));else sessionStorage.removeItem('golfolio_manual_location')}catch{}};
     async function loadBoardPrefs(){try{const session=boardSession();if(!session?.access_token)return;const r=await fetch('/api/settings',{headers:{Authorization:'Bearer '+session.access_token}});if(!r.ok)return;const d=await r.json(),s=d.settings||{};boardPrefs.radius=Number(s.nearby_radius_miles||15);boardPrefs.useLocation=!!s.use_location;boardPrefs.kinds=new Set([s.show_tournaments&&'tournament',s.show_courses&&'course',s.show_training&&'training',s.show_simulators&&'simulator'].filter(Boolean));if(boardPrefs.useLocation&&!coords&&!manualLocation)useLocation(true)}catch{}}
     async function loadListings(opts={}){
       const session=boardSession();
@@ -203,8 +219,10 @@
         let list=data.listings||[];
         list=filterByPrefs(list,boardPrefs.kinds);
         if(kindFilter&&kindFilter!=='all')list=list.filter(x=>kindMatchesFilter(x.kind,kindFilter));
+        if(searchTerm){const q=searchTerm.toLowerCase();list=list.filter(x=>[x.title,x.city,x.venue_name].some(v=>String(v||'').toLowerCase().includes(q)))}
         const radius=boardPrefs.radius||15;
-        if(coords&&!ignoreRadius)list=list.filter(x=>{if(!x.latitude||!x.longitude)return true;return miles(coords,{lat:x.latitude,lng:x.longitude})<=radius});
+        if(coords&&!ignoreRadius)list=list.map(x=>{if(x.latitude&&x.longitude){const dist=miles(coords,{lat:x.latitude,lng:x.longitude});return {...x,distance_miles:dist}}return x}).filter(x=>{if(!x.latitude||!x.longitude)return true;return x.distance_miles<=radius}).sort((a,b)=>{if(a.starts_at&&b.starts_at)return new Date(a.starts_at)-new Date(b.starts_at);if(a.distance_miles!=null&&b.distance_miles!=null)return a.distance_miles-b.distance_miles;return 0});
+        persistExplore();
         const emptyCopy=manualLocation&&!manualLocation.within_launch_area?'No verified listings near '+manualLocation.label+'. Browse the '+manualLocation.launch_area_label+' catalog below.':null;
         render(list,emptyCopy);
       }catch{render([])}
@@ -219,7 +237,7 @@
         const r=await fetch('/api/location?q='+encodeURIComponent(query),{headers:{Authorization:'Bearer '+session.access_token}});
         const d=await r.json();
         if(!r.ok){$('#locationText').textContent=d.error||'Could not resolve that location.';return}
-        manualLocation=d;coords={lat:d.latitude,lng:d.longitude};
+        manualLocation=d;coords={lat:d.latitude,lng:d.longitude};persistExplore();
         if(!d.within_launch_area){$('#locationText').textContent='No verified listings near '+d.label+'. Catalog covers '+d.launch_area_label+'.';loadListings({ignoreRadius:true});return}
         $('#locationText').textContent='Showing verified listings within '+(boardPrefs.radius||15)+' miles of '+d.label+'.';
         loadListings();
@@ -236,12 +254,13 @@
     $('#manualLocationButton').onclick=resolveManualLocation;
     $('#manualLocation').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();resolveManualLocation()}};
     $('#browseAction').onclick=()=>{$('#discoveryBoard')?.scrollIntoView({behavior:'smooth',block:'start'})};
-    document.querySelectorAll('#kindFilters [data-kind]').forEach(button=>button.onclick=()=>{kindFilter=button.dataset.kind;document.querySelectorAll('#kindFilters [data-kind]').forEach(x=>x.classList.toggle('active',x===button));loadListings()});
+    document.querySelectorAll('#kindFilters [data-kind]').forEach(button=>button.onclick=()=>{kindFilter=button.dataset.kind;document.querySelectorAll('#kindFilters [data-kind]').forEach(x=>x.classList.toggle('active',x===button));persistExplore();loadListings()});
+    const searchInput=$('#exploreSearch');if(searchInput){searchInput.value=searchTerm;searchInput.oninput=()=>{clearTimeout(searchInput._timer);searchInput._timer=setTimeout(()=>{searchTerm=searchInput.value.trim();persistExplore();loadListings()},250)}}
     $('#signupForm').onsubmit=async e=>{e.preventDefault();const status=$('#signupStatus'),username=$('#username').value.trim(),email=$('#email').value.trim(),password=$('#password').value,confirmation=$('#confirmPassword').value;if(password!==confirmation){status.textContent='Passwords do not match.';return}status.textContent='Creating your account...';try{const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password,username})}),data=await r.json();if(!r.ok)throw Error(data.msg||data.message||'Unable to create account.');status.textContent='Check your email to verify your Golfolio account.';$('#signupForm').reset()}catch(err){status.textContent=err.message}};
     loadListings();
     setExploreMode(!!boardSession()?.access_token);
   </script>
-  <div class="modal" id="loginModal"><div class="dialog"><button class="close" aria-label="Close">x</button><h2>Welcome back</h2><p>Sign in to explore verified golf near you.</p><form class="form" id="loginForm"><label for="loginEmail">Email address</label><input id="loginEmail" type="email" required><label for="loginPassword">Password</label><input id="loginPassword" type="password" required><button class="button" type="submit">Sign in</button><button class="text-button" type="button" id="forgotPassword">Forgot password?</button><button class="text-button" type="button" id="goToSignup">New here? Create a free account</button><p class="status" id="loginStatus"></p></form></div></div>
+  <div class="modal" id="loginModal"><div class="dialog"><button class="close" aria-label="Close">×</button><h2>Welcome back</h2><p>Sign in to explore verified golf near you.</p><form class="form" id="loginForm"><label for="loginEmail">Email address</label><input id="loginEmail" type="email" autocomplete="username email" required><label for="loginPassword">Password</label><div class="password-row"><input id="loginPassword" type="password" autocomplete="current-password" required><button class="show-password" type="button" data-password-toggle="loginPassword">Show</button></div><button class="button" type="submit">Sign in</button><button class="text-button" type="button" id="forgotPassword">Forgot password?</button><button class="text-button" type="button" id="goToSignup">New here? Create a free account</button><p class="status" id="loginStatus"></p></form></div></div>
   <div class="modal" id="profileModal"><div class="dialog"><button class="close" aria-label="Close">x</button><h2>Your golfer profile</h2><div id="profileBody"></div></div></div>
   <div class="modal" id="companyModal"><div class="dialog"><button class="close" aria-label="Close">x</button><h2>Company settings</h2><p>These controls are only visible to Golfolio admins.</p><form class="form" id="companyForm"><label for="companyName">Company name</label><input id="companyName" required><label for="supportEmail">Support email</label><input id="supportEmail" type="email"><label for="boundaryName">Launch boundary name</label><input id="boundaryName" required><label for="reviewMode">Listing approval</label><select id="reviewMode"><option value="admin">Admin approval required</option><option value="community">Community review enabled</option></select><button class="button" type="submit">Save company settings</button><p class="status" id="companyStatus"></p></form></div></div>
   <div class="modal" id="adminModal"><div class="dialog admin-dialog"><button class="close" aria-label="Close">x</button><h2>Listing review</h2><p>AI and community leads stay here until you approve them.</p><div id="adminBody"><p class="copy">Loading pending listings...</p></div></div></div>
@@ -262,7 +281,7 @@
       async function updateAccount(){const signup=$('#signupButton'),menu=$('#accountMenu'),go=path=>window.golfolioNavigate(path);if(!session){signup.classList.remove('hidden');menu.classList.add('hidden');$('#accountButton').textContent='Sign in';$('#accountButton').onclick=()=>open('#loginModal');signup.onclick=()=>open('#signupModal');setExploreMode(false);return}signup.classList.add('hidden');$('#accountButton').textContent=profile?.username||'My profile';setExploreMode(true);$('#accountButton').onclick=()=>{menu.innerHTML=`<span class="menu-note">Signed in as ${profile?.username||'Player'}</span><button id="menuGame">My game</button><button id="menuPlayers">Find players</button><button id="menuSettings">Settings</button>${profile?.role==='admin'?'<button id="menuCompany">Company settings</button><button id="menuReview">Listings</button>':''}<button id="menuSignOut">Sign out</button>`;menu.classList.toggle('hidden');$('#menuGame').onclick=()=>go('/hub');$('#menuPlayers').onclick=()=>go('/players');$('#menuSettings').onclick=()=>go('/settings');if(profile?.role==='admin'){$('#menuCompany').onclick=()=>go('/company');$('#menuReview').onclick=()=>go('/listings')};$('#menuSignOut').onclick=signOut;};}
       async function signIn(email,password){const c=await getConfig();const r=await fetch(c.supabaseUrl+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:c.supabaseAnonKey,'Content-Type':'application/json'},body:JSON.stringify({email,password})});const d=await r.json();if(!r.ok)throw Error(d.error_description||d.msg||'Unable to sign in.');session=d;localStorage.setItem('golfolio_session',JSON.stringify(d));await loadProfile();}
       async function loadProfile(){try{const c=await getConfig();const r=await fetch(c.supabaseUrl+'/rest/v1/profiles?select=id,username,role,created_at,first_name,last_name,phone,avatar',{headers:{apikey:c.supabaseAnonKey,Authorization:'Bearer '+session.access_token}});if(!r.ok)throw Error('Session expired');const rows=await r.json();if(!Array.isArray(rows))throw Error('Session expired');profile=rows[0]||null;await updateAccount();reloadBoard()}catch{localStorage.removeItem('golfolio_session');session=profile=null;await updateAccount();reloadBoard()}}
-      $('#loginForm').onsubmit=async e=>{e.preventDefault();const s=$('#loginStatus');s.textContent='Signing in...';try{await signIn($('#loginEmail').value,$('#loginPassword').value);s.textContent='You are signed in.';const returnTo=safeReturnTo(new URLSearchParams(location.search).get('returnTo'));setTimeout(()=>returnTo?window.golfolioNavigate(returnTo):close('#loginModal'),500)}catch(err){s.textContent=err.message}};
+      $('#loginForm').onsubmit=async e=>{e.preventDefault();const s=$('#loginStatus');if($('#loginForm').dataset.submitting==='1')return;$('#loginForm').dataset.submitting='1';s.textContent='Signing in...';try{await signIn($('#loginEmail').value,$('#loginPassword').value);s.textContent='Signed in.';const returnTo=safeReturnTo(new URLSearchParams(location.search).get('returnTo'));setTimeout(()=>returnTo?window.golfolioNavigate(returnTo):close('#loginModal'),300)}catch(err){s.textContent=err.message;$('#loginForm').dataset.submitting='0'}};
       $('#forgotPassword').onclick=async()=>{const s=$('#loginStatus'),email=$('#loginEmail').value.trim();if(!email){s.textContent='Enter your email address first.';return}try{const c=await getConfig(),redirectTo=location.origin+'/?reset=1';const r=await fetch(c.supabaseUrl+'/auth/v1/recover',{method:'POST',headers:{apikey:c.supabaseAnonKey,'Content-Type':'application/json'},body:JSON.stringify({email,redirect_to:redirectTo})});if(!r.ok)throw Error('Could not send reset email.');s.textContent='If that email exists, a reset link is on its way.'}catch(err){s.textContent=err.message}};
       $('#goToSignup').onclick=()=>{close('#loginModal');open('#signupModal')};
       $('#resetForm').onsubmit=async e=>{e.preventDefault();const s=$('#resetStatus'),password=$('#resetPassword').value,confirmation=$('#resetConfirmPassword').value,token=new URLSearchParams(location.hash.slice(1)).get('access_token');if(password!==confirmation){s.textContent='Passwords do not match.';return}if(!token){s.textContent='This reset link is incomplete or has expired. Request a new one.';return}s.textContent='Saving your new password...';try{const c=await getConfig(),r=await fetch(c.supabaseUrl+'/auth/v1/user',{method:'PUT',headers:{apikey:c.supabaseAnonKey,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({password})});if(!r.ok)throw Error('Could not save your password. Please request a new reset email.');s.textContent='Password updated. You can now sign in.';history.replaceState(null,'',location.pathname);setTimeout(()=>{close('#resetModal');open('#loginModal')},900)}catch(err){s.textContent=err.message}};
@@ -281,7 +300,7 @@
           $('#logRound').onclick=openRoundForm;$('#editInfo').onclick=()=>{close('#playerHubModal');openProfile()};bindHubTabs(body);
         }catch(error){body.innerHTML=`<div class="hub-head"><div><div class="hub-kicker">Player hub</div><h1 class="hub-name">Almost ready</h1></div></div><div class="setup-note">${escapeHtml(error.message)}<br><br>Run the <code>player-hub-migration.sql</code> file in Supabase, then reopen My game. This migration creates round history and player connections without adding sample data.</div>`}
       }
-      async function renderPlayers(body){body.innerHTML=`<div class="hub-head"><div><div class="hub-kicker">Golfolio player hub</div><h1 class="hub-name">Find your golf crew</h1><p class="hub-subtitle">Follow player usernames. Real names, email addresses, and phone numbers stay private.</p></div></div>${hubTabs('players')}<section class="hub-card player-finder"><label for="playerSearch">Search player usernames</label><input id="playerSearch" maxlength="24" placeholder="Search by username"><div id="playerResults" class="player-list"><p class="copy">Loading players...</p></div></section>`;bindHubTabs(body);const search=$('#playerSearch'),results=$('#playerResults');const load=async()=>{results.innerHTML='<p class="copy">Searching...</p>';try{const d=await playerApi('?view=players&q='+encodeURIComponent(search.value.trim()));results.innerHTML=d.players.length?d.players.map(p=>`<div class="player-row"><div class="profile-avatar">${playerAvatar(p)}</div><div class="player-row-main"><strong>${escapeHtml(p.username)}</strong><small>${escapeHtml(p.city||p.home_course||'Golfolio player')}</small></div><button class="button" data-follow="${p.id}" data-following="${p.following}">${p.following?'Following':'Follow'}</button></div>`).join(''):'<div class="empty-hub"><h3>No player found.</h3><p>Try another username as more golfers join Golfolio.</p></div>';results.querySelectorAll('[data-follow]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await playerApi('',{method:'POST',body:JSON.stringify({action:button.dataset.following==='true'?'unfollow':'follow',following_id:button.dataset.follow})});load()}catch(e){button.disabled=false;alert(e.message)}})}catch(e){results.innerHTML='<p class="setup-note">'+escapeHtml(e.message)+'</p>'}};search.oninput=()=>{clearTimeout(search._timer);search._timer=setTimeout(load,250)};load()}
+      async function renderPlayers(body){body.innerHTML=`<div class="hub-head"><div><div class="hub-kicker">Golf crew</div><h1 class="hub-name">Find your golf crew</h1><p class="hub-subtitle">Use the Crew tab for exact-username lookup, friend requests, and safety tools.</p></div></div><div class="action-row"><a class="button" href="/players">Open Crew</a></div>`}
       function bindHubTabs(body){body.querySelectorAll('[data-hub-view]').forEach(button=>button.onclick=()=>openPlayerHub(button.dataset.hubView))}
       function openRoundForm(){close('#playerHubModal');$('#roundDate').value=new Date().toISOString().slice(0,10);$('#roundForm').reset();$('#roundDate').value=new Date().toISOString().slice(0,10);open('#roundModal')}
       const roundForm=$('#roundForm');if(roundForm)roundForm.onsubmit=async e=>{e.preventDefault();const s=$('#roundStatus');s.textContent='Saving round...';try{await playerApi('',{method:'POST',body:JSON.stringify({action:'round',round:{course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:'private'}})});s.textContent='Round saved.';setTimeout(()=>{close('#roundModal');openPlayerHub('game')},500)}catch(error){s.textContent=error.message}};

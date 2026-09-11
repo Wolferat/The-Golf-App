@@ -15,7 +15,7 @@
     "mobile:build": "node scripts/build-mobile.mjs",
     "ios:sync": "npm run mobile:build && cap sync ios",
     "ios:open": "cap open ios",
-    "check:mobile": "node --test scripts/mobile.test.mjs",
+    "check:mobile": "node --test scripts/mobile.test.mjs scripts/mobile-beta.test.mjs",
     "check:experience": "node --test scripts/experience.test.mjs",
     "preview:design": "node scripts/preview-design.mjs",
     "preview:live": "node scripts/preview-live.mjs",

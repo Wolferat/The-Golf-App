@@ -49,6 +49,9 @@
     return d;
   };
   const EVENT_TZ='America/Chicago';
+  const localToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+  const ui=window.golfolioUI||{alert:message=>Promise.resolve(window.alert(message)),confirm:message=>Promise.resolve(window.confirm(message)),prompt:(message,options={})=>Promise.resolve(window.prompt(message,options.defaultValue||'')),select:()=>Promise.resolve(null)};
+  const AVATAR_CHOICES=[{id:'G',label:'Golfer'},{id:'P',label:'Putter'},{id:'F',label:'Fairway'},{id:'B',label:'Back nine'},{id:'C',label:'Club'}];
   const dtLocal=(value,dateOnly)=>{
     if(!value)return'';
     if(dateOnly||/^\d{4}-\d{2}-\d{2}$/.test(String(value)))return String(value).slice(0,10);
@@ -76,7 +79,7 @@
         menu.className='account-menu';
         button.parentElement.append(menu);
       }
-      menu.innerHTML=`<span class="menu-note">Signed in as ${escape(name)}</span><a href="/">Home</a><a href="/hub">My game</a><a href="/players">Find players</a><a href="/settings">Settings</a>${p?.role==='admin'?'<a href="/company">Company settings</a><a href="/listings">Listings</a>':''}<button type="button" id="menuSignOut">Sign out</button>`;
+      menu.innerHTML=`<span class="menu-note">Signed in as ${escape(name)}</span><a href="/">Explore</a><a href="/saved">Saved</a><a href="/hub">My game</a><a href="/players">Crew</a><a href="/settings">Profile</a>${p?.role==='admin'?'<a href="/admin">Admin workspace</a>':''}<button type="button" id="menuSignOut">Sign out</button>`;
       menu.classList.toggle('hidden');
       $('#menuSignOut').onclick=()=>{localStorage.removeItem('golfolio_session');window.golfolioNavigate('/')};
     };
@@ -103,7 +106,7 @@
 
   const openRound=()=>{
     $('#roundDialog').hidden=false;
-    $('#roundDate').value=new Date().toISOString().slice(0,10);
+    $('#roundDate').value=localToday();
     const sel=$('#roundVenue');
     if(sel&&!sel.dataset.loaded){
       fetch('/api/listings?kinds=course,simulator',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json()).then(d=>{
@@ -138,7 +141,7 @@
       try{
         const d=await socialApi('?view=blocks');
         blocks.innerHTML=d.blocks?.length?`<section class="card"><h3>Blocked players</h3>${d.blocks.map(x=>`<div class="player"><div class="player-main"><strong>${escape(x.user?.username||'Player')}</strong></div><button class="button ghost" data-unblock="${escape(x.user_id)}">Unblock</button></div>`).join('')}</section>`:'';
-        blocks.querySelectorAll('[data-unblock]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'unblock',user_id:b.dataset.unblock})});loadBlocks()}catch(e){b.disabled=false;alert(e.message)}});
+        blocks.querySelectorAll('[data-unblock]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'unblock',user_id:b.dataset.unblock})});loadBlocks()}catch(e){b.disabled=false;ui.alert(e.message,{title:'Unblock player'})}});
       }catch{}
     };
     const loadInvites=async()=>{
@@ -146,8 +149,8 @@
       try{
         const d=await socialApi('?view=invitations');
         invites.innerHTML=`<section class="card"><h3>Invitations</h3><button class="button" id="createInvite" type="button">Create invitation link</button><div id="inviteToken"></div>${(d.invitations||[]).map(x=>`<p>${escape(x.status)} · expires ${escape(new Date(x.expires_at).toLocaleDateString())}${x.status==='active'?` <button class="button ghost" data-revoke="${escape(x.id)}">Revoke</button>`:''}</p>`).join('')}</section>`;
-        $('#createInvite').onclick=async()=>{try{const created=await socialApi('',{method:'POST',body:JSON.stringify({action:'create_invitation'})});$('#inviteToken').innerHTML=`<p class="settings-note">Share this token once: <code>${escape(created.token)}</code></p>`;loadInvites()}catch(e){alert(e.message)}};
-        invites.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=async()=>{try{await socialApi('',{method:'POST',body:JSON.stringify({action:'revoke_invitation',invitation_id:b.dataset.revoke})});loadInvites()}catch(e){alert(e.message)}});
+        $('#createInvite').onclick=async()=>{try{const created=await socialApi('',{method:'POST',body:JSON.stringify({action:'create_invitation'})});$('#inviteToken').innerHTML=`<p class="settings-note">Share this token once: <code>${escape(created.token)}</code></p>`;loadInvites()}catch(e){ui.alert(e.message,{title:'Invitation'})}};
+        invites.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=async()=>{try{await socialApi('',{method:'POST',body:JSON.stringify({action:'revoke_invitation',invitation_id:b.dataset.revoke})});loadInvites()}catch(e){ui.alert(e.message,{title:'Invitation'})}});
       }catch{}
     };
     const loadRequests=async()=>{
@@ -157,9 +160,9 @@
         const accepted=(d.friendships||[]).filter(x=>x.status==='accepted');
         requests.innerHTML=pending.length?`<section class="card"><h3>Incoming requests</h3>${pending.map(x=>`<div class="player"><div class="player-main"><strong>${escape(x.other_user?.username||'Player')}</strong></div><div class="action-row"><button class="button" data-fid="${escape(x.id)}" data-decision="accept">Accept</button><button class="button ghost" data-fid="${escape(x.id)}" data-decision="decline">Decline</button></div></div>`).join('')}</section>`:'';
         friends.innerHTML=accepted.length?`<section class="card"><h3>Friends</h3>${accepted.map(x=>`<div class="player"><div class="player-main"><strong>${escape(x.other_user?.username||'Player')}</strong></div><button class="button ghost" data-remove="${escape(x.id)}">Remove</button></div>`).join('')}${d.friendships.filter(x=>x.outgoing).map(x=>`<div class="player"><div class="player-main"><strong>${escape(x.other_user?.username||'Player')} · pending</strong></div><button class="button ghost" data-cancel="${escape(x.id)}">Cancel request</button></div>`).join('')}</section>`:'';
-        requests.querySelectorAll('[data-fid]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'respond_friendship',friendship_id:b.dataset.fid,decision:b.dataset.decision})});loadRequests()}catch(e){b.disabled=false;alert(e.message)}});
-        friends.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{if(!confirm('Remove this friend?'))return;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'remove_friend',friendship_id:b.dataset.remove})});loadRequests()}catch(e){alert(e.message)}});
-        friends.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{try{await socialApi('',{method:'POST',body:JSON.stringify({action:'cancel_friend_request',friendship_id:b.dataset.cancel})});loadRequests()}catch(e){alert(e.message)}});
+        requests.querySelectorAll('[data-fid]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'respond_friendship',friendship_id:b.dataset.fid,decision:b.dataset.decision})});loadRequests()}catch(e){b.disabled=false;ui.alert(e.message,{title:'Friend request'})}});
+        friends.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{if(!await ui.confirm('Remove this friend?',{title:'Remove friend',destructive:true}))return;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'remove_friend',friendship_id:b.dataset.remove})});loadRequests()}catch(e){ui.alert(e.message,{title:'Remove friend'})}});
+        friends.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{try{await socialApi('',{method:'POST',body:JSON.stringify({action:'cancel_friend_request',friendship_id:b.dataset.cancel})});loadRequests()}catch(e){ui.alert(e.message,{title:'Friend request'})}});
       }catch{}
     };
     const load=async()=>{
@@ -170,8 +173,8 @@
       try{
         const d=await socialApi('?view=discovery&q='+encodeURIComponent(term));
         results.innerHTML=d.players?.length?d.players.map(p=>`<div class="player"><div class="avatar">${avatar(p)}</div><div class="player-main"><strong>${escape(p.username)}</strong><small>${escape(p.city||p.home_course||'Golfolio player')}</small></div><div class="action-row"><button class="button" data-id="${p.id}">Send request</button><button class="button ghost" data-block="${p.id}">Block</button></div></div>`).join(''):`<div class="empty"><h2>No eligible player found.</h2><p>Exact username matches only.</p></div>`;
-        results.querySelectorAll('[data-id]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'friend_request',user_id:b.dataset.id})});b.textContent='Requested'}catch(e){b.disabled=false;alert(e.message)}});
-        results.querySelectorAll('[data-block]').forEach(b=>b.onclick=async()=>{if(!confirm('Block this player?'))return;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'block',user_id:b.dataset.block})});loadBlocks();load()}catch(e){alert(e.message)}});
+        results.querySelectorAll('[data-id]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'friend_request',user_id:b.dataset.id})});b.textContent='Requested'}catch(e){b.disabled=false;ui.alert(e.message,{title:'Friend request'})}});
+        results.querySelectorAll('[data-block]').forEach(b=>b.onclick=async()=>{if(!await ui.confirm('Block this player?',{title:'Block player',destructive:true}))return;try{await socialApi('',{method:'POST',body:JSON.stringify({action:'block',user_id:b.dataset.block})});loadBlocks();load()}catch(e){ui.alert(e.message,{title:'Block player'})}});
       }catch(e){results.innerHTML=`<div class="notice">${escape(e.message)}</div>`}
     };
     $('#playerSearchButton').onclick=load;
@@ -186,7 +189,7 @@
     profile=data.profile||{};
     const s=data.settings||{};
     let selected=profile.avatar||'G';
-    const choices=['G','P','F','B','C'];
+    const avatarMarkup=AVATAR_CHOICES.map(x=>`<button class="avatar-option ${x.id===selected?'selected':''}" type="button" data-avatar="${x.id}" aria-label="${escape(x.label)} avatar"><span aria-hidden="true">${x.id}</span><span class="avatar-label">${escape(x.label)}</span></button>`).join('');
     $('#pageBody').innerHTML=`
       <div class="settings-stack">
         <section class="card">
@@ -202,8 +205,8 @@
             <input id="lastName" maxlength="60" value="${escape(profile.last_name)}">
             <label for="phone">Phone number (optional) <span class="privacy-pill private">Private</span></label>
             <input id="phone" type="tel" maxlength="30" value="${escape(profile.phone)}">
-            <label>Choose a golf avatar</label>
-            <div class="avatar-options">${choices.map(x=>`<button class="avatar-option ${x===selected?'selected':''}" type="button" data-avatar="${x}">${x}</button>`).join('')}</div>
+            <label>Choose an avatar</label>
+            <div class="avatar-options">${avatarMarkup}</div>
             <button class="button" type="submit">Save profile</button>
             <p class="status" id="profileStatus"></p>
           </form>
@@ -222,74 +225,62 @@
             <button class="button" type="submit">Request email change</button>
             <p class="status" id="emailStatus"></p>
           </form>
-          <p class="settings-note">Need a password reset? Sign out, open Sign in on Home, then use Forgot password.</p>
+          <p class="settings-note">Need a password reset? Use Forgot password from Sign in on Explore, or sign out and request a reset email.</p>
         </section>
 
         <section class="card">
-          <div class="kicker">Notifications</div>
-          <h2>What you want to hear about</h2>
-          <p class="settings-note">These choices are saved now for Golfolio’s future notification system. Nothing is sent yet.</p>
-          <form id="notifyForm">
-            ${toggleRow('notifyNearby','Verified events near me','Approved tournaments, courses, and training near you.',s.notify_nearby_events)}
-            ${toggleRow('notifyFollowed','Saved / followed golf activity','Updates related to players and golf you choose to follow.',s.notify_followed_activity)}
-            ${toggleRow('notifyProduct','Golfolio product updates','Occasional product notes about Golfolio itself.',s.notify_product_updates)}
-            <div class="action-row"><button class="button" type="submit">Save notification choices</button></div>
-            <p class="status" id="notifyStatus"></p>
-          </form>
-        </section>
-
-        <section class="card">
-          <div class="kicker">Location</div>
+          <div class="kicker">Location and discovery</div>
           <h2>Nearby golf</h2>
-          <p class="settings-note">Golfolio can remember that you want nearby sorting. Browser/device permission is controlled by your browser and cannot be silently changed by this website. Precise location history is never stored.</p>
+          <p class="settings-note">These are your player discovery preferences. The admin service area in Company settings controls which listings Golfolio can approve.</p>
           <form class="form" id="locationForm">
-            ${toggleRow('useLocation','Use my location','When enabled, Home can ask the browser for location after you tap Use location.',s.use_location)}
+            ${toggleRow('useLocation','Use my location','When enabled, Explore can ask your device for location after you tap Use location.',s.use_location)}
             <label for="nearbyRadius">Nearby radius (miles)</label>
             <input id="nearbyRadius" type="number" min="1" max="100" step="1" value="${Number(s.nearby_radius_miles||15)}">
             <div class="action-row">
               <button class="button" type="submit">Save location settings</button>
-              <button class="button ghost" type="button" id="requestLocation">Request browser location now</button>
+              <button class="button ghost" type="button" id="requestLocation">Request device location now</button>
             </div>
             <p class="status" id="locationStatus"></p>
           </form>
-        </section>
-
-        <section class="card">
-          <div class="kicker">Preferences</div>
-          <h2>Listing categories on Home</h2>
-          <p class="settings-note">Choose which approved listing types appear on your launch board.</p>
-          <form id="prefsForm">
+          <form id="prefsForm" style="margin-top:18px">
+            <label>Listing categories on Explore</label>
             <div class="category-grid">
-              <label><input id="showTournaments" type="checkbox" ${s.show_tournaments?'checked':''}> <span><strong>Tournaments</strong><br><small>Events and competitions</small></span></label>
+              <label><input id="showTournaments" type="checkbox" ${s.show_tournaments?'checked':''}> <span><strong>Tournaments</strong><br><small>Events, charity, and corporate</small></span></label>
               <label><input id="showCourses" type="checkbox" ${s.show_courses?'checked':''}> <span><strong>Courses</strong><br><small>Places to play</small></span></label>
-              <label><input id="showTraining" type="checkbox" ${s.show_training?'checked':''}> <span><strong>Training</strong><br><small>Lessons and clinics</small></span></label>
-              <label><input id="showSimulators" type="checkbox" ${s.show_simulators?'checked':''}> <span><strong>Simulators</strong><br><small>Indoor / sim events</small></span></label>
+              <label><input id="showTraining" type="checkbox" ${s.show_training?'checked':''}> <span><strong>Lessons</strong><br><small>Training and clinics</small></span></label>
+              <label><input id="showSimulators" type="checkbox" ${s.show_simulators?'checked':''}> <span><strong>Simulators</strong><br><small>Indoor golf</small></span></label>
             </div>
-            <div class="action-row"><button class="button" type="submit">Save preferences</button></div>
+            <div class="action-row"><button class="button" type="submit">Save discovery preferences</button></div>
             <p class="status" id="prefsStatus"></p>
           </form>
         </section>
 
         <section class="card">
-          <div class="kicker">Saved listings</div>
-          <h2>Saved golf spots</h2>
-          <p class="settings-note">Saved listings do not require social participation.</p>
-          <div id="savedListings"><p>Loading saved listings...</p></div>
+          <div class="kicker">Privacy and safety</div>
+          <h2>Your data and blocked players</h2>
+          <p class="settings-note">Round history is private to you in this release. Blocked players are managed from Crew when social features are enabled.</p>
+          <p class="settings-note"><a href="/players">Open Crew</a> to block or unblock players when social features are available.</p>
         </section>
 
         <section class="card">
-          <div class="kicker">Help and safety</div>
-          <h2>Support and community standards</h2>
+          <div class="kicker">Help and support</div>
+          <h2>Support links</h2>
           <div id="supportLinks"><p>Loading support links...</p></div>
         </section>
 
         <section class="card">
-          <div class="kicker">Data / security</div>
-          <h2>Your information stays yours</h2>
-          <p class="settings-note">Your settings are private to your account. You choose what to share with other golfers.</p>
-          <div id="roundsPrivacyNotice"></div>
-          <div id="accountDeletionPanel"><p>Loading account options...</p></div>
+          <div class="kicker">Legal</div>
+          <h2>Community standards</h2>
+          <div id="legalLinks"><p>Loading legal links...</p></div>
         </section>
+
+        <section class="card">
+          <div class="kicker">Account deletion</div>
+          <h2>Delete your account</h2>
+          <div id="accountDeletionPanel"><p>Loading account options...</p></div>
+          <div class="action-row" style="margin-top:18px"><button class="button ghost" type="button" id="settingsSignOut">Sign out</button></div>
+        </section>
+        ${profile?.role==='admin'?`<section class="card"><div class="kicker">Admin</div><h2>Operations workspace</h2><p class="settings-note">Review listings, photos, reports, and company settings.</p><div class="action-row"><a class="button" href="/admin">Open admin workspace</a></div></section>`:''}
       </div>`;
 
     document.querySelectorAll('[data-avatar]').forEach(b=>b.onclick=()=>{
@@ -348,12 +339,6 @@
       }catch(err){statusEl.textContent=err.message}
     };
 
-    $('#notifyForm').onsubmit=saveSettings($('#notifyStatus'),()=>({
-      notify_nearby_events:$('#notifyNearby').checked,
-      notify_followed_activity:$('#notifyFollowed').checked,
-      notify_product_updates:$('#notifyProduct').checked
-    }));
-
     $('#locationForm').onsubmit=saveSettings($('#locationStatus'),()=>({
       use_location:$('#useLocation').checked,
       nearby_radius_miles:Number($('#nearbyRadius').value||15)
@@ -362,48 +347,48 @@
     $('#requestLocation').onclick=async()=>{
       const status=$('#locationStatus');
       if(!navigator.geolocation){status.textContent='This browser does not support location.';return}
-      status.textContent='Waiting for browser permission...';
+      status.textContent='Waiting for device permission...';
       navigator.geolocation.getCurrentPosition(async()=>{
-        status.textContent='Browser location is available for this visit.';
-      },()=>{status.textContent='Browser location was not shared.'},{enableHighAccuracy:false,timeout:10000});
+        try{
+          $('#useLocation').checked=true;
+          await settingsApi({method:'PUT',body:JSON.stringify({use_location:true,nearby_radius_miles:Number($('#nearbyRadius').value||15)})});
+          status.textContent='Device shared location for this visit. Your preference is saved. Precise coordinates are not stored.';
+        }catch(err){status.textContent=err.message}
+      },()=>{status.textContent='Location was not shared. You can still save the preference and try again later.'},{enableHighAccuracy:false,timeout:10000,maximumAge:0});
     };
-
-    const savedBox=$('#savedListings');
-    savedApi().then(d=>{
-      const rows=(d.saved||[]).filter(x=>x.available);
-      savedBox.innerHTML=rows.length?rows.map(x=>`<p><a href="/listing?id=${encodeURIComponent(x.listing_id)}">${escape(x.listing?.title||'Saved listing')}</a></p>`).join(''):'<p>No saved listings yet. Save listings from listing detail when available.</p>';
-    }).catch(e=>{savedBox.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
 
     const supportBox=$('#supportLinks');
     fetch('/api/social?view=support',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json()).then(d=>{
       const links=[
         d.player_support_url?`<p><a href="${escape(d.player_support_url)}" target="_blank" rel="noreferrer">Player support</a></p>`:'',
-        d.community_standards_url?`<p><a href="${escape(d.community_standards_url)}" target="_blank" rel="noreferrer">Community standards</a></p>`:'',
-        d.safety_help_url?`<p><a href="${escape(d.safety_help_url)}" target="_blank" rel="noreferrer">Safety help</a></p>`:'',
         d.player_support_email?`<p><a href="mailto:${escape(d.player_support_email)}">${escape(d.player_support_email)}</a></p>`:''
       ].filter(Boolean);
       supportBox.innerHTML=links.length?links.join(''):'<p class="settings-note">Support links have not been configured yet. Admins can set them in Company settings.</p>';
     }).catch(e=>{supportBox.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
 
-    const roundsNotice=$('#roundsPrivacyNotice');
-    roundsNotice.innerHTML='<p class="notice">Round history is private to you in this release. Existing rounds were migrated to owner-only visibility.</p>';
+    const legalBox=$('#legalLinks');
+    if(legalBox){
+      fetch('/api/social?view=support',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json()).then(d=>{
+        const links=[
+          d.community_standards_url?`<p><a href="${escape(d.community_standards_url)}" target="_blank" rel="noreferrer">Community standards</a></p>`:'',
+          d.safety_help_url?`<p><a href="${escape(d.safety_help_url)}" target="_blank" rel="noreferrer">Safety help</a></p>`:''
+        ].filter(Boolean);
+        legalBox.innerHTML=links.length?links.join(''):'<p class="settings-note">Legal links have not been configured yet.</p>';
+      }).catch(e=>{legalBox.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
+    }
 
     const deletionPanel=$('#accountDeletionPanel');
     accountApi().then(info=>{
       if(!info.account_deletion_enabled&&!info.test_mode){
-        deletionPanel.innerHTML='<p class="settings-note">Account deletion is not enabled yet. Owner must configure retention and enable deletion.</p>';
+        deletionPanel.innerHTML='<p class="settings-note">Account deletion is not enabled yet. An admin must enable deletion in Company settings.</p>';
         return;
       }
-      deletionPanel.innerHTML=`<form class="form" id="deleteAccountForm"><p class="settings-note">Deleting your account removes authentication access and ordinary profile data. Moderation evidence may be retained for a configured period.</p><label class="check"><input id="deleteConfirm" type="checkbox"><span>I understand this permanently deletes my account.</span></label><label for="deleteConfirmText">Type DELETE to confirm</label><input id="deleteConfirmText" maxlength="10" autocomplete="off"><label for="deletePassword">Confirm your current password</label><input id="deletePassword" type="password" autocomplete="current-password"><button class="button" type="submit">Delete my account</button><p class="status" id="deleteStatus"></p></form>`;
-      $('#deleteAccountForm').onsubmit=async e=>{e.preventDefault();const s=$('#deleteStatus');s.textContent='Deleting account...';try{const result=await accountApi({method:'POST',body:JSON.stringify({action:'delete_account',confirm:true,confirm_text:$('#deleteConfirmText').value,password:$('#deletePassword').value})});if(result.status==='cleanup_pending'){localStorage.removeItem('golfolio_session');s.textContent=result.message||'Authentication removed. Remaining storage cleanup will retry automatically.';return}localStorage.removeItem('golfolio_session');s.textContent=result.message||'Account deleted.';setTimeout(()=>window.golfolioNavigate('/'),800)}catch(err){s.textContent=err.message}};
+      deletionPanel.innerHTML=`<form class="form" id="deleteAccountForm"><p class="settings-note">Deleting your account removes authentication access and ordinary profile data. Moderation evidence may be retained for a configured period.</p><label class="check"><input id="deleteConfirm" type="checkbox"><span>I understand this permanently deletes my account.</span></label><label for="deleteConfirmText">Type DELETE to confirm</label><input id="deleteConfirmText" maxlength="10" autocomplete="off"><label for="deletePassword">Confirm your current password</label><input id="deletePassword" type="password" autocomplete="current-password"><button class="button destructive" type="submit">Delete my account</button><p class="status" id="deleteStatus"></p></form>`;
+      $('#deleteAccountForm').onsubmit=async e=>{e.preventDefault();const s=$('#deleteStatus');if(!$('#deleteConfirm').checked){s.textContent='Confirm that you understand this action.';return}s.textContent='Deleting account...';try{const result=await accountApi({method:'POST',body:JSON.stringify({action:'delete_account',confirm:true,confirm_text:$('#deleteConfirmText').value,password:$('#deletePassword').value})});if(result.status==='cleanup_pending'){localStorage.removeItem('golfolio_session');s.textContent=result.message||'Authentication removed. Remaining storage cleanup will retry automatically.';return}localStorage.removeItem('golfolio_session');s.textContent=result.message||'Account deleted.';setTimeout(()=>window.golfolioNavigate('/'),800)}catch(err){s.textContent=err.message}};
     }).catch(e=>{deletionPanel.innerHTML=`<p class="notice">${escape(e.message)}</p>`});
-        try{
-          $('#useLocation').checked=true;
-          await settingsApi({method:'PUT',body:JSON.stringify({use_location:true,nearby_radius_miles:Number($('#nearbyRadius').value||15)})});
-          status.textContent='Browser shared location for this visit. Your preference is saved. Precise coordinates are not stored.';
-        }catch(err){status.textContent=err.message}
-      },()=>{status.textContent='Location was not shared. You can still save the preference and try again later.'},{enableHighAccuracy:false,timeout:10000,maximumAge:0});
-    };
+
+    const signOutButton=$('#settingsSignOut');
+    if(signOutButton)signOutButton.onclick=()=>{localStorage.removeItem('golfolio_session');window.golfolioNavigate('/')};
 
     $('#prefsForm').onsubmit=saveSettings($('#prefsStatus'),()=>({
       show_tournaments:$('#showTournaments').checked,
@@ -411,6 +396,53 @@
       show_training:$('#showTraining').checked,
       show_simulators:$('#showSimulators').checked
     }));
+  };
+
+
+  const mountSaved=async()=>{
+    const body=$('#pageBody');
+    body.innerHTML='<section class="card"><p>Loading saved listings...</p></section>';
+    try{
+      const data=await savedApi();
+      const rows=(data.saved||[]);
+      if(!rows.length){
+        body.innerHTML=`<section class="card empty"><div class="kicker">Saved</div><h2>No saved listings yet</h2><p>Save courses, events, and venues from Explore or listing details. Saved listings do not require social participation.</p><div class="action-row"><a class="button" href="/">Explore golf</a></div></section>`;
+        return;
+      }
+      body.innerHTML=`<section class="card"><div class="kicker">Saved listings</div><h2>Your golf spots</h2><div class="players">${rows.map(row=>{
+        const listing=row.listing||{};
+        const unavailable=!row.available;
+        return `<div class="player"><div class="player-main"><strong>${escape(listing.title||'Saved listing')}</strong><small>${escape(listing.city||'Golfolio listing')}${unavailable?' · unavailable':''}</small></div><div class="action-row">${unavailable?'':`<a class="button ghost" href="/listing?id=${encodeURIComponent(row.listing_id)}">Open</a>`}<button class="button ghost" type="button" data-remove-saved="${escape(row.listing_id)}">Remove</button></div></div>`;
+      }).join('')}</div></section>`;
+      body.querySelectorAll('[data-remove-saved]').forEach(button=>button.onclick=async()=>{
+        if(!await ui.confirm('Remove this saved listing?',{title:'Remove saved listing'}))return;
+        button.disabled=true;
+        try{
+          await fetch('/api/saved-listings',{method:'DELETE',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({listing_id:button.dataset.removeSaved})});
+          await window.golfolioSaved?.load?.(true);
+          mountSaved();
+        }catch(e){button.disabled=false;ui.alert(e.message,{title:'Saved listings'})}
+      });
+    }catch(e){body.innerHTML=`<section class="notice"><strong>We could not load saved listings.</strong><br>${escape(e.message)}<br><br><button class="button" id="retrySaved">Try again</button></section>`;$('#retrySaved').onclick=()=>mountSaved()}
+  };
+
+  const mountAdmin=async()=>{
+    const me=await api('?view=me');
+    profile=me.profile||{};
+    if(profile.role!=='admin'){window.golfolioNavigate('/settings');return}
+    const [adminRes,photoRes,modRes]=await Promise.all([
+      fetch('/api/admin?view=active',{headers:{Authorization:'Bearer '+session.access_token}}),
+      fetch('/api/venue-photos?view=pending',{headers:{Authorization:'Bearer '+session.access_token}}),
+      moderationApi('?view=queue').catch(()=>({reports:[]}))
+    ]);
+    const adminData=await adminRes.json().catch(()=>({}));
+    const photoData=await photoRes.json().catch(()=>({}));
+    if(!adminRes.ok)throw Error(adminData.error||'Could not load admin overview.');
+    const listings=adminData.listings||[];
+    const pending=listings.filter(x=>x.status==='pending').length;
+    const pendingPhotos=(photoData.photos||[]).length;
+    const openReports=(modRes.reports||[]).filter(x=>x.status==='open'||x.status==='reviewing').length;
+    $('#pageBody').innerHTML=`<section class="card"><div class="kicker">Admin workspace</div><h2>Overview</h2><p class="settings-note">Player tabs stay available below. Use this workspace for moderation and company operations.</p><section class="stat-grid"><div class="stat"><b>${pending}</b><span>Pending listings</span></div><div class="stat"><b>${pendingPhotos}</b><span>Pending photos</span></div><div class="stat"><b>${openReports}</b><span>Open reports</span></div></section><div class="admin-workspace-links"><a href="/listings">Listing management <span aria-hidden="true">→</span></a><a href="/company">Company settings <span aria-hidden="true">→</span></a><a href="/">Return to player view <span aria-hidden="true">→</span></a></div></section>`;
   };
 
 
@@ -507,6 +539,29 @@
         </section>
 
         <section class="card">
+          <div class="kicker">Player support and safety</div>
+          <h2>Support, social, and deletion gates</h2>
+          <p class="settings-note">These settings control player-facing support links and feature gates. They are separate from the admin service area above and from each player&apos;s discovery location preferences.</p>
+          <form class="form" id="supportGateForm">
+            <label for="playerSupportEmail">Player support email</label>
+            <input id="playerSupportEmail" type="email" maxlength="160" value="${escape(s.player_support_email||'')}">
+            <label for="playerSupportUrl">Player support URL</label>
+            <input id="playerSupportUrl" maxlength="500" value="${escape(s.player_support_url||'')}">
+            <label for="communityStandardsUrl">Community standards URL</label>
+            <input id="communityStandardsUrl" maxlength="500" value="${escape(s.community_standards_url||'')}">
+            <label for="safetyHelpUrl">Safety help URL</label>
+            <input id="safetyHelpUrl" maxlength="500" value="${escape(s.safety_help_url||'')}">
+            ${toggle('socialFeaturesEnabled','Social features enabled','Requires policy review before enabling friend requests, invitations, and exact-username discovery.',!!s.social_features_enabled)}
+            ${toggle('accountDeletionEnabled','Account deletion enabled','Allows players to delete accounts after password reauthentication.',!!s.account_deletion_enabled)}
+            <label for="evidenceRetentionDays">Moderation evidence retention (days)</label>
+            <input id="evidenceRetentionDays" type="number" min="1" max="3650" step="1" value="${Number(s.moderation_evidence_retention_days||30)}">
+            <div class="action-row"><button class="button" type="submit">Save support and gates</button></div>
+            <p class="status" id="supportGateStatus"></p>
+          </form>
+          <div class="settings-note" style="margin-top:12px"><strong>Public preview:</strong> ${s.player_support_url?`<a href="${escape(s.player_support_url)}" target="_blank" rel="noreferrer">Support</a>`:'Support link not set.'} · ${s.community_standards_url?`<a href="${escape(s.community_standards_url)}" target="_blank" rel="noreferrer">Community standards</a>`:'Standards link not set.'}</div>
+        </section>
+
+        <section class="card">
           <div class="kicker">Manual AI listing search</div>
           <h2>Find listing leads</h2>
           <p class="settings-note">Search stays inside the saved Sherman service area. Results are private until you save a lead as pending. Leads with verified coordinates outside the radius are omitted; leads without coordinates show their source address for your manual radius check. If 25 listings are already pending, new search leads cannot be created. Research on existing listings still works.</p>
@@ -560,6 +615,15 @@
       ai_research_enabled:$('#aiResearchEnabled').checked,
       auto_expire_events_enabled:$('#autoExpireEnabled').checked
     }));
+    $('#supportGateForm').onsubmit=save($('#supportGateStatus'),()=>({
+      player_support_email:$('#playerSupportEmail').value.trim()||null,
+      player_support_url:$('#playerSupportUrl').value.trim()||null,
+      community_standards_url:$('#communityStandardsUrl').value.trim()||null,
+      safety_help_url:$('#safetyHelpUrl').value.trim()||null,
+      social_features_enabled:$('#socialFeaturesEnabled').checked,
+      account_deletion_enabled:$('#accountDeletionEnabled').checked,
+      moderation_evidence_retention_days:Number($('#evidenceRetentionDays').value||30)
+    }));
     $('#aiSearchForm').onsubmit=async e=>{
       e.preventDefault();
       const status=$('#aiSearchStatus'), results=$('#aiSearchResults');
@@ -593,7 +657,7 @@
     const logLine=(list,text)=>{if(!list)return;const li=document.createElement('li');li.textContent=text;list.append(li)};
     const runPhotoBackfill=async panel=>{
       if(backfillRunning||!panel)return;
-      if(!confirm(BACKFILL_CONFIRM))return;
+      if(!await ui.confirm(BACKFILL_CONFIRM,{title:'Populate official photos',confirmLabel:'Start backfill'}))return;
       backfillRunning=true;backfillStopped=false;
       panel.hidden=false;
       panel.innerHTML='<div class="kicker">One-time backfill</div><h2>Populate official listing photos</h2><p class="settings-note">Images verified on each listing’s own official website go to the approval queue. Nothing is downloaded or re-hosted.</p><p class="status" id="backfillProgress">Loading approved listings...</p><div class="action-row"><button class="button ghost" id="backfillStop" type="button">Stop</button></div><ul id="backfillLog" class="settings-note"></ul>';
@@ -640,12 +704,18 @@
         const pendingPhotos=photosData.photos||[];
         const reviewPending=pendingReviews.filter(x=>x.status==='pending');
         const photoPending=pendingReviews.filter(x=>x.photo_status==='pending'&&x.photo_url);
-        body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ghost" data-view="active">Pending & approved</button><button class="button ghost" data-view="archived">Archived / expired</button><button class="button" data-view="community">Community</button><a class="button ghost" href="/company">Manual AI search</a></div>
+        const photoGroups=Object.values(pendingPhotos.reduce((acc,p)=>{
+          const key=p.listing_id||p.listing_title||p.id;
+          (acc[key]=acc[key]||{listing_id:p.listing_id,listing_title:p.listing_title,listing_kind:p.listing_kind,photos:[]}).photos.push(p);
+          return acc;
+        },{}));
+        const photoGroupsHtml=photoGroups.length?photoGroups.map(group=>`<section class="photo-approval-group"><div class="kicker">${escape(group.listing_kind||'listing')} · ${escape(group.listing_title||'Listing')}</div><p class="settings-note">${group.photos.length} pending candidate${group.photos.length===1?'':'s'}</p><div class="photo-approval-grid">${group.photos.map(p=>`<figure><label class="check"><input type="checkbox" data-photo-select="${escape(p.id)}"> Select</label><a href="${escape(p.image_url)}" target="_blank" rel="noreferrer"><img src="${escape(p.image_url)}" alt="" referrerpolicy="no-referrer"></a><figcaption><a href="${escape(p.source_url||'#')}" target="_blank" rel="noreferrer">${escape(p.source_name||'Official site')}</a>${p.width&&p.height?` · ${p.width}×${p.height}`:''}${p.import_error?` · ${escape(p.import_error)}`:''}</figcaption><div class="action-row"><button class="button" data-photo-action="approve" data-id="${escape(p.id)}">Approve</button><button class="button ghost" data-photo-action="reject" data-id="${escape(p.id)}">Reject</button></div></figure>`).join('')}</div><div class="action-row"><button class="button ghost" data-photo-bulk="approve" data-group="${escape(group.listing_id||group.listing_title)}">Approve selected</button><button class="button ghost" data-photo-bulk="reject" data-group="${escape(group.listing_id||group.listing_title)}">Reject selected</button></div></section>`).join(''):'<p class="settings-note">No official photo imports are waiting.</p>';
+        body.innerHTML=`<div class="action-row" style="margin-bottom:16px"><button class="button ghost" data-view="active">Pending & approved</button><button class="button ghost" data-view="archived">Archived / expired</button><button class="button" data-view="community">Community</button><a class="button ghost" href="/admin">Admin overview</a></div>
           <section class="stat-grid"><div class="stat"><b>${reviewPending.length}</b><span>Pending reviews</span></div><div class="stat"><b>${photoPending.length}</b><span>Pending review photos</span></div><div class="stat"><b>${pendingPhotos.length}</b><span>Pending official photos</span></div></section>
           <section class="settings-stack" style="margin-top:18px">
             <section class="card"><div class="kicker">Needs review</div><h2>Player reviews</h2>${reviewPending.length?reviewPending.map(rv=>`<article class="review-card"><div class="kicker">${escape(rv.listing_kind||'listing')} · ${escape(rv.listing_title||'Listing')}</div><div class="review-head"><div class="avatar">${escape(rv.avatar||'G')}</div><div><strong>${escape(rv.username)}</strong><small>${escape(rv.status)}</small></div></div><p>${escape(rv.body)}</p>${rv.photo_url?`<img class="review-photo" src="${escape(rv.photo_url)}" alt="">`:''}<div class="action-row"><button class="button" data-review-action="approve" data-id="${escape(rv.id)}">Approve review</button><button class="button ghost" data-review-action="reject" data-id="${escape(rv.id)}">Reject</button></div></article>`).join(''):'<p class="settings-note">No player reviews are waiting.</p>'}</section>
             <section class="card"><div class="kicker">Needs review</div><h2>Review photos</h2>${photoPending.length?photoPending.map(rv=>`<article class="review-card"><div class="kicker">${escape(rv.listing_title||'Listing')} · ${escape(rv.username)}</div>${rv.photo_url?`<img class="review-photo" src="${escape(rv.photo_url)}" alt="">`:''}<div class="action-row"><button class="button" data-review-action="approve_photo" data-id="${escape(rv.id)}">Approve photo</button><button class="button ghost" data-review-action="reject_photo" data-id="${escape(rv.id)}">Reject photo</button></div></article>`).join(''):'<p class="settings-note">No review photos are waiting.</p>'}</section>
-            <section class="card"><div class="kicker">Needs review</div><h2>Official venue photos</h2>${pendingPhotos.length?pendingPhotos.map(p=>`<article class="review-card"><div class="kicker">${escape(p.listing_kind||'listing')} · ${escape(p.listing_title||'Listing')}</div><img class="review-photo" src="${escape(p.image_url)}" alt="" referrerpolicy="no-referrer"><p class="settings-note">From the official venue website · <a href="${escape(p.source_url)}" target="_blank" rel="noreferrer">${escape(p.source_name||'Official site')}</a></p><div class="action-row"><button class="button" data-photo-action="approve" data-id="${escape(p.id)}">Approve</button><button class="button ghost" data-photo-action="reject" data-id="${escape(p.id)}">Reject</button><button class="button ghost" data-photo-action="remove" data-id="${escape(p.id)}">Remove</button></div></article>`).join(''):'<p class="settings-note">No official photo imports are waiting.</p>'}</section>
+            <section class="card"><div class="kicker">Needs review</div><h2>Official venue photos</h2>${photoGroupsHtml}</section>
           </section>`;
         body.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>load(button.dataset.view));
         body.querySelectorAll('[data-review-action]').forEach(button=>button.onclick=async()=>{
@@ -654,7 +724,7 @@
             const resp=await fetch('/api/reviews',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:button.dataset.id,action:button.dataset.reviewAction})});
             const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
             load('community');
-          }catch(err){button.disabled=false;alert(err.message)}
+          }catch(err){button.disabled=false;ui.alert(err.message,{title:'Review action'})}
         });
         body.querySelectorAll('[data-photo-action]').forEach(button=>button.onclick=async()=>{
           button.disabled=true;
@@ -662,7 +732,20 @@
             const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:button.dataset.id,action:button.dataset.photoAction})});
             const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
             load('community');
-          }catch(err){button.disabled=false;alert(err.message)}
+          }catch(err){button.disabled=false;ui.alert(err.message,{title:'Photo approval'})}
+        });
+        body.querySelectorAll('[data-photo-bulk]').forEach(button=>button.onclick=async()=>{
+          const group=button.closest('.photo-approval-group');
+          const ids=[...group.querySelectorAll('[data-photo-select]:checked')].map(el=>el.dataset.photoSelect);
+          if(!ids.length){ui.alert('Select at least one photo candidate.',{title:'Photo approval'});return}
+          button.disabled=true;
+          try{
+            for(const id of ids){
+              const resp=await fetch('/api/venue-photos',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action:button.dataset.photoBulk})});
+              const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
+            }
+            load('community');
+          }catch(err){button.disabled=false;ui.alert(err.message,{title:'Photo approval'})}
         });
         return;
       }
@@ -682,7 +765,7 @@
       body.querySelectorAll('button[data-action]').forEach(button=>button.onclick=async()=>{
         const id=button.dataset.id, action=button.dataset.action, note=body.querySelector(`[data-row-status="${id}"]`);
         if(action==='delete'){
-          const ok=confirm('Delete this listing from Golfolio? This extra confirmation is required. The listing will be hidden from public pages and admin active views. The database record is kept with status deleted.');
+          const ok=await ui.confirm('Delete this listing from Golfolio? This extra confirmation is required. The listing will be hidden from public pages and admin active views. The database record is kept with status deleted.',{title:'Delete listing',destructive:true,confirmLabel:'Delete listing'});
           if(!ok)return;
         }
         button.disabled=true;
@@ -697,7 +780,7 @@
           const resp=await fetch('/api/admin',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id,action,confirm:action==='delete'?true:undefined})});
           const x=await resp.json(); if(!resp.ok)throw Error(x.error||'Update failed.');
           load(view);
-        }catch(err){button.disabled=false;if(note)note.textContent=err.message;else alert(err.message)}
+        }catch(err){button.disabled=false;if(note)note.textContent=err.message;else ui.alert(err.message,{title:'Listing action'})}
       });
     };
     const mountModerationSection=async()=>{
@@ -708,16 +791,16 @@
         section.id='moderationQueue';
         section.innerHTML=`<div class="kicker">Moderation</div><h2>Open reports</h2>${moderation.reports?.length?moderation.reports.slice(0,8).map(r=>`<div class="player"><div class="player-main"><strong>${escape(r.category)}</strong><small>${escape(r.status)} · ${escape(r.details||'No details')}</small></div><div class="action-row"><button class="button ghost" data-review="${escape(r.id)}">Review</button><button class="button ghost" data-close-report="${escape(r.id)}">Close</button>${r.reported_user_id?`<button class="button ghost" data-restrict="${escape(r.reported_user_id)}" data-report="${escape(r.id)}">Restrict account</button>`:''}</div></div>`).join(''):'<p class="settings-note">No open reports.</p>'}<div class="action-row"><button class="button ghost" id="loadPhotoContributions" type="button">Review photo contributions</button></div><div id="photoContributionQueue"></div>`;
         body.prepend(section);
-        section.querySelectorAll('[data-review]').forEach(b=>b.onclick=async()=>{try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'open_review',report_id:b.dataset.review})});mountModerationSection()}catch(e){alert(e.message)}});
-        section.querySelectorAll('[data-close-report]').forEach(b=>b.onclick=async()=>{const note=prompt('Resolution note (optional)')||'';try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'close_report',report_id:b.dataset.closeReport,resolution_note:note})});mountModerationSection()}catch(e){alert(e.message)}});
-        section.querySelectorAll('[data-restrict]').forEach(b=>b.onclick=async()=>{const reason=prompt('Restriction reason','Community standards review')||'Community standards review';try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'restrict_account',user_id:b.dataset.restrict,report_id:b.dataset.report,reason})});mountModerationSection()}catch(e){alert(e.message)}});
+        section.querySelectorAll('[data-review]').forEach(b=>b.onclick=async()=>{try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'open_review',report_id:b.dataset.review})});mountModerationSection()}catch(e){ui.alert(e.message,{title:'Moderation'})}});
+        section.querySelectorAll('[data-close-report]').forEach(b=>b.onclick=async()=>{const note=await ui.prompt('Resolution note (optional)',{title:'Close report',label:'Resolution note',defaultValue:''});if(note===null)return;try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'close_report',report_id:b.dataset.closeReport,resolution_note:note})});mountModerationSection()}catch(e){ui.alert(e.message,{title:'Moderation'})}});
+        section.querySelectorAll('[data-restrict]').forEach(b=>b.onclick=async()=>{const reason=await ui.prompt('Restriction reason',{title:'Restrict account',label:'Reason',defaultValue:'Community standards review'});if(reason===null)return;try{await moderationApi('',{method:'POST',body:JSON.stringify({action:'restrict_account',user_id:b.dataset.restrict,report_id:b.dataset.report,reason})});mountModerationSection()}catch(e){ui.alert(e.message,{title:'Moderation'})}});
         section.querySelector('#loadPhotoContributions').onclick=async()=>{
           const queue=section.querySelector('#photoContributionQueue');
           queue.innerHTML='<p>Loading pending contributions...</p>';
           try{
             const data=await fetch('/api/photo-contributions?view=admin_queue&status=pending',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json());
             queue.innerHTML=(data.contributions||[]).map(c=>`<div class="player"><div class="player-main"><strong>${escape(c.id)}</strong>${c.preview_url?`<img src="${escape(c.preview_url)}" alt="" style="max-width:120px;display:block;margin-top:8px">`:''}</div><div class="action-row"><button class="button" data-approve="${escape(c.id)}">Approve</button><button class="button ghost" data-reject="${escape(c.id)}">Reject</button></div></div>`).join('')||'<p class="settings-note">No pending contributions.</p>';
-            queue.querySelectorAll('[data-approve],[data-reject]').forEach(btn=>btn.onclick=async()=>{try{await fetch('/api/photo-contributions',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'review',contribution_id:btn.dataset.approve||btn.dataset.reject,decision:btn.dataset.approve?'approve':'reject'})});section.querySelector('#loadPhotoContributions').click()}catch(e){alert(e.message)}});
+            queue.querySelectorAll('[data-approve],[data-reject]').forEach(btn=>btn.onclick=async()=>{try{await fetch('/api/photo-contributions',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'review',contribution_id:btn.dataset.approve||btn.dataset.reject,decision:btn.dataset.approve?'approve':'reject'})});section.querySelector('#loadPhotoContributions').click()}catch(e){ui.alert(e.message,{title:'Photo contributions'})}});
           }catch(e){queue.innerHTML=`<p class="notice">${escape(e.message)}</p>`}
         };
       }catch{}
@@ -848,8 +931,21 @@
     };
     drawStats('eighteen');
     history.innerHTML=`<h2>Round history</h2>${d.rounds?.length?d.rounds.map(r=>`<div class="round"><div><strong>${escape(r.course_name)}</strong><small>${new Date(r.played_on+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} · ${r.holes} holes${r.par?' · Par '+r.par:''}</small>${r.notes?`<p class="round-note">${escape(r.notes)}</p>`:''}<div class="action-row"><button class="button ghost" type="button" data-edit-round="${escape(r.id)}">Edit</button><button class="button ghost" type="button" data-delete-round="${escape(r.id)}">Delete</button></div></div><div class="score">${r.score}<small>Private</small></div></div>`).join(''):`<div class="empty"><h2>Your story starts on the course.</h2><p>Log your first round to see your real scoring average and personal best.</p></div>`}`;
-    history.querySelectorAll('[data-delete-round]').forEach(button=>button.onclick=async()=>{if(!confirm('Delete this round?'))return;try{await api('',{method:'POST',body:JSON.stringify({action:'delete_round',round_id:button.dataset.deleteRound})});location.reload()}catch(e){alert(e.message)}});
-    history.querySelectorAll('[data-edit-round]').forEach(button=>button.onclick=async()=>{const round=d.rounds.find(x=>x.id===button.dataset.editRound);if(!round)return;const score=prompt('Score',round.score);if(score==null)return;const notes=prompt('Notes',round.notes||'');try{await api('',{method:'POST',body:JSON.stringify({action:'update_round',round:{id:round.id,score,notes}})});location.reload()}catch(e){alert(e.message)}});
+    history.querySelectorAll('[data-delete-round]').forEach(button=>button.onclick=async()=>{if(!await ui.confirm('Delete this round?',{title:'Delete round',destructive:true}))return;try{await api('',{method:'POST',body:JSON.stringify({action:'delete_round',round_id:button.dataset.deleteRound})});location.reload()}catch(e){ui.alert(e.message,{title:'Round history'})}});
+    history.querySelectorAll('[data-edit-round]').forEach(button=>button.onclick=async()=>{
+      const round=d.rounds.find(x=>x.id===button.dataset.editRound);
+      if(!round)return;
+      $('#roundDialog').hidden=false;
+      $('#roundCourse').value=round.course_name||'';
+      $('#roundDate').value=round.played_on||localToday();
+      $('#roundScore').value=round.score||'';
+      $('#roundHoles').value=String(round.holes||18);
+      $('#roundPar').value=round.par||'';
+      $('#roundPutts').value=round.putts||'';
+      $('#roundNotes').value=round.notes||'';
+      $('#roundDialog').dataset.editId=round.id;
+      $('#roundDialog').scrollIntoView({behavior:'smooth',block:'center'});
+    });
   };
 
 
@@ -859,15 +955,24 @@
   if(roundForm)roundForm.onsubmit=async e=>{
     e.preventDefault();
     const s=$('#roundStatus');
+    if(roundForm.dataset.submitting==='1')return;
+    roundForm.dataset.submitting='1';
     s.textContent='Saving round...';
     try{
-      await api('',{method:'POST',body:JSON.stringify({action:'round',round:{listing_id:$('#roundVenue')?.value||null,course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:'private'}})});
+      const editId=$('#roundDialog')?.dataset?.editId;
+      const payload={listing_id:$('#roundVenue')?.value||null,course_name:$('#roundCourse').value,played_on:$('#roundDate').value,score:$('#roundScore').value,holes:$('#roundHoles').value,par:$('#roundPar').value,putts:$('#roundPutts').value,notes:$('#roundNotes').value,visibility:'private'};
+      if(editId){
+        await api('',{method:'POST',body:JSON.stringify({action:'update_round',round:{id:editId,...payload}})});
+      }else{
+        await api('',{method:'POST',body:JSON.stringify({action:'round',round:payload})});
+      }
       s.textContent='Round saved.';
+      delete $('#roundDialog').dataset.editId;
       setTimeout(()=>location.reload(),450);
-    }catch(err){s.textContent=err.message}
+    }catch(err){s.textContent=err.message;roundForm.dataset.submitting='0'}
   };
 
-  const routes={game:mountGame,players:mountPlayers,settings:mountSettings,company:mountCompany,account:async()=>location.replace('/settings'),review:async()=>location.replace('/listings'),listings:mountListings,'listing-edit':mountListingEdit};
+  const routes={game:mountGame,players:mountPlayers,saved:mountSaved,settings:mountSettings,profile:mountSettings,admin:mountAdmin,company:mountCompany,account:async()=>location.replace('/settings'),review:async()=>location.replace('/listings'),listings:mountListings,'listing-edit':mountListingEdit};
   (routes[page]||home)().then(()=>{
     setAccountMenu(profile);
     if(page==='game')enhanceGame().catch(()=>{});

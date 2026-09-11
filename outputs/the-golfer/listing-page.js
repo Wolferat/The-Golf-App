@@ -17,7 +17,10 @@
     if(words.length>=2)return (words[0][0]+words[1][0]).toUpperCase();
     return String(title||'G').slice(0,2).toUpperCase();
   };
+  const isEventKind=kind=>['tournament','charity','corporate'].includes(kind);
+  const isVenueKind=kind=>['course','simulator','training'].includes(kind);
   const verifiedBadge=`<span class="verified-badge" aria-label="Verified listing"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#178357"/><path d="M7 12.5l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span class="verified-text">Verified</span></span>`;
+  const ui=window.golfolioUI||{alert:m=>Promise.resolve(window.alert(m)),confirm:m=>Promise.resolve(window.confirm(m)),prompt:(m,o)=>Promise.resolve(window.prompt(m,o?.defaultValue)),select:(m,o)=>Promise.resolve(null)};
   const fail=message=>{
     document.title='Listing unavailable · Golfolio';
     root.innerHTML=`<div class="listing-gate"><section class="card empty"><div class="kicker">Not available</div><h2>This listing is not available.</h2><p>${escape(message)}</p><p class="settings-note">Pending, rejected, archived, expired, and deleted listings are not public.</p><div class="action-row"><a class="button" href="/">Back to Explore</a></div></section></div>`;
@@ -111,7 +114,9 @@
     const roundable=!!listingData.roundable;
     const website=listing.official_website;
     const registration=listing.registration_url&&listing.registration_url!==website?listing.registration_url:null;
-    const heroPhoto=official.find(p=>/^https:\/\//i.test(p.image_url||''));
+    const heroPhotos=official.filter(p=>/^https:\/\//i.test(p.image_url||''));
+    const heroPhoto=heroPhotos[0];
+    const galleryMarkup=heroPhotos.length?`<div class="listing-gallery" role="region" aria-label="Photo gallery"><div class="listing-gallery-track">${heroPhotos.map((p,index)=>`<figure><img src="${escape(p.image_url)}" alt="${escape(listing.title)} photo ${index+1} of ${heroPhotos.length}" loading="${index===0?'eager':'lazy'}" referrerpolicy="no-referrer"></figure>`).join('')}</div><p class="settings-note">${heroPhotos.length} approved photo${heroPhotos.length===1?'':'s'}</p></div>`:`<div class="listing-hero-fallback golf-art" aria-label="Placeholder illustration"><span class="golf-art-flag"></span><span class="golf-art-label">Placeholder</span><p class="settings-note">No photos yet. Share a few from your next visit.</p></div>`;
     const directionsUrl=listing.address?`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(listing.address)}`:null;
 
     let profile=null;
@@ -136,13 +141,11 @@
     const ratingLabel=rating.count
       ? `${rating.average} average · ${rating.count} review${rating.count===1?'':'s'}`
       : 'No public reviews yet';
-    const scheduleCopy=[when(listing.starts_at),when(listing.ends_at)].filter(Boolean).join(' – ');
-    const heroMedia=heroPhoto
-      ? `<img class="listing-hero-img" src="${escape(heroPhoto.image_url)}" alt="${escape(listing.title)}" loading="eager" referrerpolicy="no-referrer">`
-      : `<div class="listing-hero-fallback golf-art" aria-label="Golf illustration"><span class="golf-art-flag"></span><span class="golf-art-label">MAKE TIME FOR GOLF</span></div>`;
+    const scheduleCopy=isEventKind(listing.kind)&&listing.starts_at?[when(listing.starts_at),listing.ends_at?when(listing.ends_at):null].filter(Boolean).join(' – '):'';
+    const heroMedia=heroPhotos.length?galleryMarkup:`<div class="listing-hero-fallback golf-art" aria-label="Placeholder illustration"><span class="golf-art-flag"></span><span class="golf-art-label">Placeholder</span><p class="settings-note">No photos yet. Share a few from your next visit.</p></div>`;
 
     root.innerHTML=`<article class="listing-detail listing-page">
-      <div class="listing-hero ${heroPhoto?'has-photo':'has-fallback'}" data-fallback-title="${escape(listing.title)}" data-fallback-kind="${escape(listing.kind||'course')}">
+      <div class="listing-hero ${heroPhotos.length?'has-photo':'has-fallback'}" data-fallback-title="${escape(listing.title)}" data-fallback-kind="${escape(listing.kind||'course')}">
         ${heroMedia}
         <div class="listing-hero-overlay">
           <div class="kicker">${escape(kindLabel(listing.kind))}</div>
@@ -164,7 +167,7 @@
               <div><strong>Venue</strong><p>${escape(listing.venue_name||'Not verified')}</p></div>
               <div><strong>City</strong><p>${escape(listing.city||'Location not provided')}</p></div>
               <div><strong>Address</strong><p>${escape(listing.address||'Not verified')}</p></div>
-              <div><strong>Schedule</strong><p>${escape(scheduleCopy||'Date not verified')}</p></div>
+              ${isEventKind(listing.kind)?`<div><strong>Event date</strong><p>${escape(scheduleCopy||'Date not verified')}</p></div>`:''}
               <div><strong>Pricing</strong><p>${escape(listing.price_note||'See the official website or registration page for pricing.')}</p></div>
               <div><strong>Phone</strong><p>${listing.phone?`<a href="tel:${escape(listing.phone.replace(/[^\d+]/g,''))}">${escape(listing.phone)}</a>`:'Not verified'}</p></div>
             </div>
@@ -201,7 +204,7 @@
             <h2>Golfolio reviews</h2>
             ${reviewable?'':'<p class="settings-note">Reviews are only for approved courses and simulators. Tournament, charity, corporate, training, and expired listings cannot be reviewed.</p>'}
             ${reviewable&&!session?.access_token?`<p class="settings-note">Sign in to leave one review. You can attach one photo to the review. Reviews stay pending until an admin approves them.</p><div class="action-row"><a class="button" href="${escape(signInHref)}">Sign in to review</a></div>`:''}
-            ${reviewable&&session?.access_token?`<form class="form" id="reviewForm">
+            ${reviewable&&session?.access_token?`<button class="button ghost" type="button" id="openReviewForm">${mine?'Edit your review':'Write a review'}</button><form class="form hidden" id="reviewForm">
               <p class="settings-note">${mine?'You already reviewed this venue. Editing sends it back to admin approval.':'One review per player. It stays private until an admin approves it. Optional: attach one photo to this review only.'}</p>
               <input type="hidden" id="reviewId" value="${escape(mine?.id||'')}">
               <label for="reviewRating">Rating</label>
@@ -217,7 +220,7 @@
               <div class="action-row"><button class="button" type="submit">${mine?'Update review':'Submit review'}</button>${mine?`<button class="button ghost" type="button" id="deleteReview">Delete my review</button>`:''}</div>
               <p class="status" id="reviewStatus"></p>
             </form>`:''}
-            <div id="reviewList" style="margin-top:18px">${publicReviews.filter(rv=>rv.status==='approved').length?publicReviews.filter(rv=>rv.status==='approved').map(rv=>reviewCard(rv,false)).join(''):'<p class="settings-note">No approved player reviews yet.</p>'}</div>
+            <div id="reviewList" style="margin-top:18px">${publicReviews.filter(rv=>rv.status==='approved').length?publicReviews.filter(rv=>rv.status==='approved').map(rv=>reviewCard(rv,false)).join(''):reviewable?'<p class="settings-note">No approved player reviews yet.</p>':''}</div>
             ${mine&&mine.status!=='approved'?`<div style="margin-top:18px"><div class="section-kicker">Your review</div>${reviewCard(mine,true)}</div>`:''}
           </section>
         </div>
@@ -226,8 +229,8 @@
           <h2>Official next steps</h2>
           <p>Confirm details with the organizer or venue. Official website and registration links remain the authority.</p>
           <div class="plan-actions">
-            ${website?`<a class="button" href="${escape(website)}" target="_blank" rel="noreferrer">Official website</a>`:''}
-            ${registration?`<a class="button ghost" href="${escape(registration)}" target="_blank" rel="noreferrer">Official registration</a>`:''}
+            ${website?`<a class="button" href="${escape(website)}" target="_blank" rel="noreferrer">${registration&&registration!==website?'Visit website':'Visit website'}</a>`:''}
+            ${registration?`<a class="button ghost" href="${escape(registration)}" target="_blank" rel="noreferrer">Register</a>`:''}
             ${directionsUrl?`<a class="button ghost" href="${escape(directionsUrl)}" target="_blank" rel="noreferrer">Directions</a>`:''}
             <button class="button ghost" type="button" id="shareListing">Share listing</button>
             ${listing.starts_at?`<button class="button ghost" type="button" id="exportCalendar">Add to calendar</button>`:''}
@@ -252,9 +255,12 @@
       return d;
     };
 
-    const form=$('#reviewForm');
-    if(form){
-      form.onsubmit=async e=>{
+    const openReview=$('#openReviewForm'), reviewFormEl=$('#reviewForm');
+    if(openReview&&reviewFormEl){
+      openReview.onclick=()=>{reviewFormEl.classList.toggle('hidden');if(!reviewFormEl.classList.contains('hidden'))reviewFormEl.scrollIntoView({behavior:'smooth',block:'center'})};
+    }
+    if(reviewFormEl){
+      reviewFormEl.onsubmit=async e=>{
         e.preventDefault();
         const s=$('#reviewStatus');
         s.textContent='Saving review...';
@@ -279,11 +285,11 @@
     const deleteBtn=$('#deleteReview');
     if(deleteBtn&&mine?.id){
       deleteBtn.onclick=async()=>{
-        if(!confirm('Delete your review? You can write a new one later.'))return;
+        if(!await ui.confirm('Delete your review? You can write a new one later.',{title:'Delete review',destructive:true}))return;
         try{
           await postReview({action:'delete',id:mine.id});
           location.reload();
-        }catch(err){alert(err.message)}
+        }catch(err){ui.alert(err.message,{title:'Review'})}
       };
     }
     root.querySelectorAll('[data-delete-review]').forEach(button=>button.onclick=async()=>{
@@ -300,15 +306,22 @@
     const actionStatus=$('#listingActionStatus');
     const saveBtn=$('#saveListing');
     if(saveBtn){
+      const refreshSave=async()=>{
+        await window.golfolioSaved?.load?.(true);
+        const saved=window.golfolioSaved?.isSaved?.(id);
+        saveBtn.textContent=saved?'Saved':'Save listing';
+        saveBtn.setAttribute('aria-pressed',saved?'true':'false');
+      };
+      refreshSave();
       saveBtn.onclick=async()=>{
         actionStatus.textContent='Saving...';
+        saveBtn.disabled=true;
         try{
-          const r=await fetch('/api/saved-listings',{method:'POST',headers:authHeaders(),body:JSON.stringify({listing_id:id})});
-          const d=await r.json().catch(()=>({}));
-          if(!r.ok)throw Error(d.error||'Could not save listing.');
-          actionStatus.textContent='Listing saved.';
-          saveBtn.disabled=true;
+          const nowSaved=await window.golfolioSaved.toggle(id);
+          actionStatus.textContent=nowSaved?'Listing saved.':'Removed from saved listings.';
+          await refreshSave();
         }catch(err){actionStatus.textContent=err.message}
+        finally{saveBtn.disabled=false}
       };
     }
     const shareBtn=$('#shareListing');
@@ -360,9 +373,9 @@
     const reportBtn=$('#reportListing');
     if(reportBtn){
       reportBtn.onclick=async()=>{
-        const category=prompt('Report category: harassment, spam, inappropriate_content, impersonation, safety_concern, other');
+        const category=await ui.select('Choose a report category',{title:'Report listing',options:[{value:'harassment',label:'Harassment'},{value:'spam',label:'Spam'},{value:'inappropriate_content',label:'Inappropriate content'},{value:'impersonation',label:'Impersonation'},{value:'safety_concern',label:'Safety concern'},{value:'other',label:'Other'}]});
         if(!category)return;
-        const details=prompt('Optional details (max 2000 characters)')||'';
+        const details=await ui.prompt('Optional details (max 2000 characters)',{title:'Report listing',label:'Details',defaultValue:'',maxlength:2000})||'';
         actionStatus.textContent='Submitting report...';
         try{
           const r=await fetch('/api/social',{method:'POST',headers:authHeaders(),body:JSON.stringify({action:'report',reported_listing_id:id,category,details})});
