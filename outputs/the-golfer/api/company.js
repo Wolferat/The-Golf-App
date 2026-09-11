@@ -26,6 +26,13 @@ const SELECT_FIELDS = [
   'beta_area_latitude',
   'beta_area_longitude',
   'beta_area_radius_miles',
+  'social_features_enabled',
+  'account_deletion_enabled',
+  'player_support_email',
+  'player_support_url',
+  'community_standards_url',
+  'safety_help_url',
+  'moderation_evidence_retention_days',
   'updated_at'
 ].join(',');
 
@@ -53,7 +60,14 @@ const DEFAULTS = {
   beta_area_label: DEFAULT_BETA_AREA.label,
   beta_area_latitude: DEFAULT_BETA_AREA.latitude,
   beta_area_longitude: DEFAULT_BETA_AREA.longitude,
-  beta_area_radius_miles: DEFAULT_BETA_AREA.radiusMiles
+  beta_area_radius_miles: DEFAULT_BETA_AREA.radiusMiles,
+  social_features_enabled: false,
+  account_deletion_enabled: false,
+  player_support_email: null,
+  player_support_url: null,
+  community_standards_url: null,
+  safety_help_url: null,
+  moderation_evidence_retention_days: null
 };
 
 async function profileFor(token) {
@@ -113,6 +127,18 @@ function normalize(row = {}) {
     beta_area_latitude: area.latitude,
     beta_area_longitude: area.longitude,
     beta_area_radius_miles: area.radiusMiles,
+    social_features_enabled:
+      row.social_features_enabled != null ? Boolean(row.social_features_enabled) : DEFAULTS.social_features_enabled,
+    account_deletion_enabled:
+      row.account_deletion_enabled != null ? Boolean(row.account_deletion_enabled) : DEFAULTS.account_deletion_enabled,
+    player_support_email: row.player_support_email || null,
+    player_support_url: row.player_support_url || null,
+    community_standards_url: row.community_standards_url || null,
+    safety_help_url: row.safety_help_url || null,
+    moderation_evidence_retention_days:
+      row.moderation_evidence_retention_days != null
+        ? Number(row.moderation_evidence_retention_days)
+        : null,
     updated_at: row.updated_at || null,
     boundary_note:
       `Sherman service area: a ${area.radiusMiles}-mile radius centered on ${area.label} (${area.latitude}, ${area.longitude}). Change these values in Company Settings when the active area moves.`
@@ -232,6 +258,33 @@ function pickUpdates(body = {}) {
       throw new Error('Service area radius must be a whole number of miles between 1 and 250.');
     }
     next.beta_area_radius_miles = miles;
+  }
+  if (body.social_features_enabled !== undefined) {
+    next.social_features_enabled = Boolean(body.social_features_enabled);
+  }
+  if (body.account_deletion_enabled !== undefined) {
+    next.account_deletion_enabled = Boolean(body.account_deletion_enabled);
+  }
+  if (body.player_support_email !== undefined) {
+    const email = cleanText(body.player_support_email, { max: 160 });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Player support email is invalid.');
+    next.player_support_email = email;
+  }
+  if (body.player_support_url !== undefined) {
+    next.player_support_url = cleanText(body.player_support_url, { max: 500 });
+  }
+  if (body.community_standards_url !== undefined) {
+    next.community_standards_url = cleanText(body.community_standards_url, { max: 500 });
+  }
+  if (body.safety_help_url !== undefined) {
+    next.safety_help_url = cleanText(body.safety_help_url, { max: 500 });
+  }
+  if (body.moderation_evidence_retention_days !== undefined) {
+    const days = Number(body.moderation_evidence_retention_days);
+    if (!Number.isInteger(days) || days < 1 || days > 3650) {
+      throw new Error('Evidence retention days must be a whole number between 1 and 3650.');
+    }
+    next.moderation_evidence_retention_days = days;
   }
 
   return next;

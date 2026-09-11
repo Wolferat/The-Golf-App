@@ -8,7 +8,7 @@ if (backend.protocol !== 'https:' || backend.username || backend.password || bac
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 // Explicit client asset allowlist: never package APIs, SQL, environment files or dependencies.
-const pages = ['account', 'company', 'hub', 'listing', 'listings', 'listings/edit', 'players', 'review', 'settings'];
+const pages = ['account', 'admin', 'company', 'hub', 'listing', 'listings', 'listings/edit', 'players', 'review', 'saved', 'settings'];
 const assets = (await readdir(root)).filter(name => /\.(html|css|js)$/.test(name));
 for (const file of [...assets, ...pages.map(p => `${p}/index.html`)]) {
   let content = await readFile(path.join(root, file), 'utf8');

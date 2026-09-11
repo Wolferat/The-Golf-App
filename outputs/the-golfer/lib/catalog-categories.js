@@ -19,7 +19,7 @@ export const BOARD_CATEGORIES = {
     kinds: ['simulator']
   },
   training: {
-    label: 'Practice & Lessons',
+    label: 'Lessons',
     kinds: ['training']
   }
 };
@@ -82,7 +82,7 @@ export function kindLabel(kind) {
     case 'simulator':
       return 'Simulator';
     case 'training':
-      return 'Practice & lessons';
+      return 'Lessons';
     default:
       return kind || 'Listing';
   }
