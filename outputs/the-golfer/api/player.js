@@ -97,7 +97,7 @@ export default async function handler(req, res) {
         if (!canLogRoundAtListing(listing)) {
           return json(res, 404, { error: 'Venue stats are only available for approved courses and simulators.' });
         }
-        const mine = await fetchRecentRounds(user.id, {
+        const mine = await fetchRecentRounds(supabase, user.id, {
           limit: 500,
           extraFilter: `&listing_id=eq.${encodeURIComponent(listingId)}`
         });
@@ -122,8 +122,8 @@ export default async function handler(req, res) {
         });
       }
       const [rounds, stats, follows] = await Promise.all([
-        fetchRecentRounds(user.id, { limit: 50 }),
-        fetchRoundStats(user.id),
+        fetchRecentRounds(supabase, user.id, { limit: 50 }),
+        fetchRoundStats(supabase, user.id),
         supabase(`player_follows?follower_id=eq.${user.id}&select=following_id`).catch(() => [])
       ]);
       return json(res, 200, {

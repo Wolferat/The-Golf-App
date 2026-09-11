@@ -106,7 +106,7 @@ input[type=checkbox],input[type=radio] { accent-color:#719c7f; width:20px; heigh
 .dialog p { color:var(--muted); }
 .modal.open .dialog { animation:dialog-arrive 240ms var(--ease); }
 @keyframes dialog-arrive { from { opacity:0; transform:translateY(14px) scale(.985); } to { opacity:1; transform:none; } }
-.mobile-nav { display:grid; position:fixed; z-index:40; left:50%; right:auto; transform:translateX(-50%); bottom:calc(12px + env(safe-area-inset-bottom,0px)); width:min(480px,calc(100% - 24px)); grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; padding:7px; border:1px solid #62695b; border-radius:20px; background:#141c17f5; box-shadow:0 10px 36px #0008,inset 0 1px #e7dcc512; backdrop-filter:blur(16px); }
+.mobile-nav { display:grid; position:fixed; z-index:40; left:50%; right:auto; transform:translateX(-50%); bottom:calc(12px + env(safe-area-inset-bottom,0px)); width:min(480px,calc(100% - 24px)); grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; padding:7px; border:1px solid #62695b; border-radius:20px; background:#141c17f5; box-shadow:0 10px 36px #0008,inset 0 1px #e7dcc512; backdrop-filter:blur(16px); }
 .mobile-nav a { display:grid; justify-items:center; align-content:center; gap:6px; min-height:54px; border-radius:12px; color:#b9c2b8; text-decoration:none; }
 .mobile-nav a.active,.mobile-nav a:hover { background:#2d4030; color:#f0e4cb; }
 .mobile-nav .nav-icon { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
