@@ -113,10 +113,7 @@
   let navigationTimer;
   window.golfolioNavigate=href=>{
     const url=new URL(href,location.href);
-    if(motion.matches||!isLocal(url)){location.assign(url.href);return;}
-    if(navigationTimer)return;
-    drive.hidden=false;initBall(drive.querySelector('.golf-ball'));drive.classList.add('driving');
-    navigationTimer=setTimeout(()=>{location.assign(url.href);navigationTimer=null;drive.hidden=true;drive.classList.remove('driving');},190);
+    location.assign(url.href);
   };
   document.addEventListener('click',event=>{
     if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;

@@ -8,7 +8,7 @@ import path from 'node:path';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const localOrigin='http://127.0.0.1:8767';
 const backend='https://www.whakfukgolf.com';
-const routes=new Set(['','account','company','hub','listing','listings','listings/edit','players','review','settings']);
+const routes=new Set(['','account','admin','saved','company','hub','listing','listings','listings/edit','players','review','settings']);
 const sendError=(res,status,message)=>{if(!res.headersSent)res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({error:message}));};
 http.createServer(async(req,res)=>{
  try{
@@ -34,9 +34,9 @@ http.createServer(async(req,res)=>{
   let name=decodeURIComponent(url.pathname).replace(/^\//,'').replace(/\/$/,'');
   if(routes.has(name))name=(name?name+'/':'')+'index.html';
   const routeFile=name.endsWith('/index.html')&&routes.has(name.slice(0,-11));
-  if(!(name==='index.html'||routeFile||/^[a-zA-Z0-9_-]+\.(css|js)$/.test(name))){sendError(res,404,'Not found.');return;}
+  if(!(name==='index.html'||routeFile||/^[a-zA-Z0-9_-]+\.(css|js|webp)$/.test(name))){sendError(res,404,'Not found.');return;}
   const content=await readFile(path.join(root,name));
-  res.writeHead(200,{'Content-Type':name.endsWith('.html')?'text/html; charset=utf-8':name.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+  res.writeHead(200,{'Content-Type':name.endsWith('.webp')?'image/webp':name.endsWith('.html')?'text/html; charset=utf-8':name.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
   res.end(req.method==='HEAD'?undefined:content);
  }catch{sendError(res,404,'Not found.');}
 }).listen(8767,'127.0.0.1',()=>console.log('Refreshed local app: '+localOrigin+' — connected to the existing app API.'));

@@ -32,3 +32,5 @@ await copyFile(path.join(root, 'node_modules/@capacitor/core/dist/capacitor.js')
 await copyFile(path.join(root, 'mobile/runtime.js'), path.join(output, 'mobile-runtime.js'));
 await copyFile(path.join(root, 'mobile/native.css'), path.join(output, 'native.css'));
 console.log(`Bundled client screens. Backend: ${backend.origin}`);
+
+await copyFile(path.join(root,'golf-placeholder.webp'),path.join(output,'golf-placeholder.webp'));

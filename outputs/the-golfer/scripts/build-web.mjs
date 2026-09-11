@@ -13,3 +13,5 @@ for(const file of [...assets,...pages.map(page=>`${page}/index.html`)]){
  await copyFile(path.join(root,file),path.join(output,file));
 }
 console.log(`Built ${assets.length+pages.length} client assets and pages for Vercel.`);
+
+await copyFile(path.join(root,'golf-placeholder.webp'),path.join(output,'golf-placeholder.webp'));

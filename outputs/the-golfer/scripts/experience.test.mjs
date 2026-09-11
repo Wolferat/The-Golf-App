@@ -32,9 +32,8 @@ test('failed requests dismiss the loader and preserve the error',async()=>{
 test('external requests never display a first-party loading state',async()=>{
  const s=setup();s.mount();const p=s.window.fetch('https://example.com/auth');s.fire(450);assert.equal(s.nodes[0].hidden,true);s.calls[0].resolve({});await p;
 });
-test('navigation animates once, and bfcache restoration cancels a pending drive',()=>{
- const s=setup();s.mount();s.window.golfolioNavigate('/hub');s.window.golfolioNavigate('/players');assert.equal(s.navigations.length,0);s.fire(190);assert.deepEqual(s.navigations,['http://localhost:8765/hub']);
- s.window.golfolioNavigate('/settings');s.windowHandlers.pageshow();s.fire(190);assert.equal(s.navigations.length,1);assert.equal(s.nodes[1].hidden,true);
+test('navigation is immediate without a decorative delay',()=>{
+ const s=setup();s.mount();s.window.golfolioNavigate('/hub');assert.deepEqual(s.navigations,['http://localhost:8765/hub']);assert.equal(s.timers.size,0);s.windowHandlers.pageshow();assert.equal(s.nodes[1].hidden,true);
 });
 test('reduced motion and external navigation are immediate',()=>{
  const s=setup({reduced:true});s.mount();s.window.golfolioNavigate('/hub');assert.deepEqual(s.navigations,['http://localhost:8765/hub']);assert.equal(s.timers.size,0);

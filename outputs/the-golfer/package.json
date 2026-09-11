@@ -15,12 +15,13 @@
     "mobile:build": "node scripts/build-mobile.mjs",
     "ios:sync": "npm run mobile:build && cap sync ios",
     "ios:open": "cap open ios",
-    "check:mobile": "node --test scripts/mobile.test.mjs scripts/mobile-beta.test.mjs",
+    "check:mobile": "node --test scripts/mobile.test.mjs scripts/mobile-beta.test.mjs scripts/mobile-dialogs.test.mjs",
     "check:experience": "node --test scripts/experience.test.mjs",
     "preview:design": "node scripts/preview-design.mjs",
     "preview:live": "node scripts/preview-live.mjs",
     "web:build": "node scripts/build-web.mjs",
     "check:photos": "node --test scripts/photo-approval.test.mjs scripts/page-images.test.mjs scripts/imported-photos.test.mjs",
-    "check:functional": "node --test scripts/catalog-categories.test.mjs scripts/event-timezone.test.mjs scripts/us-location.test.mjs scripts/social.test.mjs scripts/social-discovery.test.mjs scripts/account-lifecycle.test.mjs scripts/account-deletion-retry.test.mjs scripts/api-handlers.test.mjs scripts/rounds.test.mjs scripts/contribution-photos.test.mjs scripts/functional-db.integration.test.mjs"
+    "check:functional": "node --test scripts/catalog-categories.test.mjs scripts/event-timezone.test.mjs scripts/us-location.test.mjs scripts/social.test.mjs scripts/social-discovery.test.mjs scripts/account-lifecycle.test.mjs scripts/account-deletion-retry.test.mjs scripts/api-handlers.test.mjs scripts/rounds.test.mjs scripts/contribution-photos.test.mjs scripts/functional-db.integration.test.mjs",
+    "check:client": "node --test scripts/client-syntax.test.mjs"
   }
 }

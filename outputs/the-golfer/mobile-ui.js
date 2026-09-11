@@ -6,13 +6,13 @@
   function haptic(type) {
     try {
       const cap = window.Capacitor;
-      if (cap?.isNativePlatform?.()) {
-        cap.registerPlugin('Haptics')?.impact?.({ style: type === 'success' ? 'LIGHT' : 'MEDIUM' });
+      if (cap?.isNativePlatform?.() && cap.isPluginAvailable?.('Haptics')) {
+        Promise.resolve(cap.registerPlugin('Haptics')?.impact?.({ style: type === 'success' ? 'LIGHT' : 'MEDIUM' })).catch(() => {});
       }
     } catch {}
   }
 
-  function trapFocus(root) {
+  function trapFocus(root, onEscape) {
     const focusable = () =>
       [...root.querySelectorAll('button,a[href],input,select,textarea,[tabindex="0"]')].filter(
         (el) => !el.disabled && el.getClientRects().length
@@ -20,7 +20,7 @@
     const onKey = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        close();
+        onEscape();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -43,7 +43,7 @@
     return close;
   }
 
-  function mountOverlay(className, inner, { sheet = false } = {}) {
+  function mountOverlay(className, inner, { sheet = false, onDismiss = () => {} } = {}) {
     const overlay = document.createElement('div');
     overlay.className = className + (sheet ? ' mobile-sheet-overlay' : '');
     overlay.innerHTML = inner;
@@ -52,14 +52,19 @@
     sheetStack++;
     const panel = overlay.querySelector('.mobile-dialog, .mobile-sheet');
     const returnFocus = document.activeElement;
-    const cleanupFocus = panel ? trapFocus(panel) : () => {};
+    let closed = false;
+    let cleanupFocus = () => {};
     const dismiss = () => {
+      if (closed) return;
+      closed = true;
       cleanupFocus();
       overlay.remove();
       sheetStack = Math.max(0, sheetStack - 1);
       if (!sheetStack) document.body.classList.remove('mobile-dialog-open');
       if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+      onDismiss();
     };
+    cleanupFocus = panel ? trapFocus(panel, dismiss) : () => {};
     overlay.addEventListener('click', (event) => {
       if (event.target === overlay) dismiss();
     });
@@ -74,15 +79,16 @@
     alert(message, { title = 'Notice' } = {}) {
       return new Promise((resolve) => {
         haptic('light');
-        const { dismiss } = mountOverlay(
+        let result = undefined;
+        const { overlay, dismiss } = mountOverlay(
           'mobile-dialog-overlay',
-          `<div class="mobile-dialog" role="alertdialog" aria-modal="true"><h2>${escape(title)}</h2><p>${escape(message)}</p><div class="mobile-dialog-actions"><button class="button" type="button" data-mobile-ok>OK</button></div></div>`
+          `<div class="mobile-dialog" role="alertdialog" aria-modal="true"><h2>${escape(title)}</h2><p>${escape(message)}</p><div class="mobile-dialog-actions"><button class="button" type="button" data-mobile-ok>OK</button></div></div>`,
+          { onDismiss: () => resolve(result) }
         );
         const ok = () => {
           dismiss();
           resolve();
         };
-        const overlay = document.querySelector('.mobile-dialog-overlay:last-of-type');
         overlay.querySelector('[data-mobile-ok]').onclick = ok;
         overlay.querySelector('[data-mobile-ok]').addEventListener('keydown', (event) => {
           if (event.key === 'Enter') ok();
@@ -93,15 +99,17 @@
     confirm(message, { title = 'Confirm', confirmLabel = 'Confirm', cancelLabel = 'Cancel', destructive = false } = {}) {
       return new Promise((resolve) => {
         haptic('light');
-        const { dismiss } = mountOverlay(
+        let result = false;
+        const { overlay, dismiss } = mountOverlay(
           'mobile-dialog-overlay',
-          `<div class="mobile-dialog" role="alertdialog" aria-modal="true"><h2>${escape(title)}</h2><p>${escape(message)}</p><div class="mobile-dialog-actions"><button class="button ghost" type="button" data-mobile-cancel>${escape(cancelLabel)}</button><button class="button ${destructive ? 'destructive' : ''}" type="button" data-mobile-confirm>${escape(confirmLabel)}</button></div></div>`
+          `<div class="mobile-dialog" role="alertdialog" aria-modal="true"><h2>${escape(title)}</h2><p>${escape(message)}</p><div class="mobile-dialog-actions"><button class="button ghost" type="button" data-mobile-cancel>${escape(cancelLabel)}</button><button class="button ${destructive ? 'destructive' : ''}" type="button" data-mobile-confirm>${escape(confirmLabel)}</button></div></div>`,
+          { onDismiss: () => resolve(result) }
         );
         const finish = (value) => {
+          result = value;
           dismiss();
           resolve(value);
         };
-        const overlay = document.querySelector('.mobile-dialog-overlay:last-of-type');
         overlay.querySelector('[data-mobile-cancel]').onclick = () => finish(false);
         overlay.querySelector('[data-mobile-confirm]').onclick = () => finish(true);
       });
@@ -110,13 +118,15 @@
     prompt(message, { title = 'Input', defaultValue = '', label = 'Value', maxlength = 500 } = {}) {
       return new Promise((resolve) => {
         haptic('light');
-        const { dismiss } = mountOverlay(
+        let result = null;
+        const { overlay, dismiss } = mountOverlay(
           'mobile-dialog-overlay',
-          `<div class="mobile-dialog" role="dialog" aria-modal="true"><h2>${escape(title)}</h2><p>${escape(message)}</p><form class="form mobile-prompt-form"><label for="mobilePromptInput">${escape(label)}</label><input id="mobilePromptInput" maxlength="${Number(maxlength)}" value="${escape(defaultValue)}"><div class="mobile-dialog-actions"><button class="button ghost" type="button" data-mobile-cancel>Cancel</button><button class="button" type="submit">Continue</button></div></form></div>`
+          `<div class="mobile-dialog" role="dialog" aria-modal="true"><h2>${escape(title)}</h2><p>${escape(message)}</p><form class="form mobile-prompt-form"><label for="mobilePromptInput">${escape(label)}</label><input id="mobilePromptInput" maxlength="${Number(maxlength)}" value="${escape(defaultValue)}"><div class="mobile-dialog-actions"><button class="button ghost" type="button" data-mobile-cancel>Cancel</button><button class="button" type="submit">Continue</button></div></form></div>`,
+          { onDismiss: () => resolve(result) }
         );
-        const overlay = document.querySelector('.mobile-dialog-overlay:last-of-type');
         const input = overlay.querySelector('#mobilePromptInput');
         const finish = (value) => {
+          result = value;
           dismiss();
           resolve(value);
         };
@@ -150,15 +160,17 @@
               `<button class="button ghost mobile-choice" type="button" data-mobile-choice="${escape(String(opt.value))}">${escape(opt.label || opt.value)}</button>`
           )
           .join('');
-        const { dismiss } = mountOverlay(
+        let result = null;
+        const { overlay, dismiss } = mountOverlay(
           'mobile-dialog-overlay',
-          `<div class="mobile-dialog" role="dialog" aria-modal="true"><h2>${escape(title)}</h2><p>${escape(message)}</p><div class="mobile-choice-list">${buttons}</div><div class="mobile-dialog-actions"><button class="button ghost" type="button" data-mobile-cancel>${escape(cancelLabel)}</button></div></div>`
+          `<div class="mobile-dialog" role="dialog" aria-modal="true"><h2>${escape(title)}</h2><p>${escape(message)}</p><div class="mobile-choice-list">${buttons}</div><div class="mobile-dialog-actions"><button class="button ghost" type="button" data-mobile-cancel>${escape(cancelLabel)}</button></div></div>`,
+          { onDismiss: () => resolve(result) }
         );
         const finish = (value) => {
+          result = value;
           dismiss();
           resolve(value);
         };
-        const overlay = document.querySelector('.mobile-dialog-overlay:last-of-type');
         overlay.querySelector('[data-mobile-cancel]').onclick = () => finish(null);
         overlay.querySelectorAll('[data-mobile-choice]').forEach((button) => {
           button.onclick = () => finish(button.dataset.mobileChoice);

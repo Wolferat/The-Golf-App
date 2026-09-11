@@ -448,3 +448,8 @@ body.signed-in .explore-greeting {
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* Approved photographic placeholder; explicitly labeled as illustrative. */
+.golf-art{background:linear-gradient(90deg,#06110950,transparent),url('/golf-placeholder.webp') center/cover!important;isolation:isolate}
+.golf-art:before,.golf-art:after,.golf-art-flag{display:none!important}
+.golf-art-label{z-index:2;background:#112018dd;color:#fff;padding:7px 12px;border-radius:8px}
